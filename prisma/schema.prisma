@@ -1,0 +1,638 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  associateId  String?   @unique
+  name         String
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  status       String    @default("ACTIVE")
+  lastLoginAt  DateTime?
+
+  mustChangePassword Boolean @default(false)
+  activeSessionId    String?
+
+  createdBy       String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // 1. Personal Information
+  profileImageUrl  String?
+  secondaryPhone   String?
+  whatsappNumber   String?
+  currentAddress   String?
+  permanentAddress String?
+  bloodGroup       String?
+  socialMedia      Json?
+
+  // 2. Identification Details
+  panNumber     String?
+  aadhaarNumber String?
+
+  // 3. Banking Details
+  bankName      String?
+  accountNumber String?
+  ifscCode      String?
+  branchName    String?
+
+  // 4. Emergency Contact Information
+  emergencyContactName     String?
+  emergencyContactRelation String?
+  emergencyContactPhone    String?
+
+  // 5. Official Associate Details
+  jobTitle             String?
+  department           String?
+  workLocation         String?
+  dateOfJoining        DateTime?
+  commissionPercentage Float?
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  downline TeamRelationship[] @relation("Downline")
+  upline   TeamRelationship?  @relation("Upline") // An associate has at most one parent
+
+  bookings               Booking[]
+  commissionPolicies     CommissionPolicy[]
+  commissionTransactions CommissionTransaction[]
+
+  teamRequestsMade     TeamRequest[] @relation("TeamRequester")
+  teamRequestsTargeted TeamRequest[] @relation("TeamRequestTarget")
+  teamRequestsProposed TeamRequest[] @relation("TeamRequestProposedParent")
+
+  travelRequestsMade TravelRequest[] @relation("TravelRequester")
+
+  siteVisits     SiteVisit[]
+  reviewRequests ReviewRequest[]
+  notifications  Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique // MD, ASSOCIATE_MANAGER, ASSOCIATE
+  description String?
+
+  users       User[]
+  permissions Permission[] @relation("RolePermissions")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  name        String  @unique // e.g. "view:leads", "manage:users"
+  description String?
+
+  roles Role[] @relation("RolePermissions")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TeamRelationship {
+  id                String   @id @default(uuid())
+  parentAssociateId String
+  childAssociateId  String   @unique // A child has exactly one direct manager/parent
+  parent            User     @relation("Downline", fields: [parentAssociateId], references: [id])
+  child             User     @relation("Upline", fields: [childAssociateId], references: [id])
+  status            String   @default("ACTIVE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model TeamRequest {
+  id          String @id @default(uuid())
+  requesterId String
+  requester   User   @relation("TeamRequester", fields: [requesterId], references: [id])
+
+  targetAssociateId String
+  targetAssociate   User   @relation("TeamRequestTarget", fields: [targetAssociateId], references: [id])
+
+  proposedParentId String?
+  proposedParent   User?   @relation("TeamRequestProposedParent", fields: [proposedParentId], references: [id])
+
+  requestType String // ADD, REMOVE
+  reason      String? @db.Text
+  status      String  @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id                 String  @id @default(uuid())
+  code               String  @unique
+  name               String
+  description        String? @db.Text
+  location           String
+  projectType        String // e.g. "RESIDENTIAL", "COMMERCIAL"
+  status             String  @default("DRAFT") // DRAFT, SUBMITTED, PENDING_APPROVAL, ACTIVE, INACTIVE, ARCHIVED
+  verificationStatus String  @default("UNVERIFIED") // UNVERIFIED, VERIFIED, REJECTED
+  isFeatured         Boolean @default(false)
+
+  createdBy       String
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  developerName       String?
+  marketingCompany    String?
+  possessionDate      DateTime?
+  locationDetails     Json?
+  legalInfo           Json?
+  landDetails         Json?
+  pricingInfo         Json?
+  amenities           Json?
+  nearbyInfo          Json?
+  constructionDetails Json?
+  marketingInfo       Json?
+  salesInfo           Json?
+
+  media                  ProjectMedia[]
+  inventory              InventoryUnit[]
+  carouselItems          CarouselItem[]
+  promotionalPopups      PromotionalPopup[]
+  bookings               Booking[]
+  commissionPolicies     CommissionPolicy[]
+  commissionTransactions CommissionTransaction[]
+  travelRequests         TravelRequest[]
+  siteVisits             SiteVisit[]
+  offers                 Offer[]
+  reviewRequests         ReviewRequest[]
+  layouts                ProjectLayout[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProjectMedia {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id])
+  mediaType    String // e.g. "GALLERY", "BROCHURE", "LAYOUT"
+  url          String
+  title        String?
+  displayOrder Int      @default(0)
+  status       String   @default("ACTIVE")
+  isCover      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model InventoryUnit {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id])
+  unitNumber   String
+  propertyType String // e.g. "PLOT", "UNIT"
+  size         String?
+  price        Decimal
+  status       String   @default("AVAILABLE") // AVAILABLE, BOOKED, BLOCKED
+  metadata     Json?
+  booking      Booking?
+  layoutElements LayoutElement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, unitNumber]) // Prevent duplicate unit names in the same project
+}
+
+model CarouselItem {
+  id           String  @id @default(uuid())
+  title        String?
+  subtitle     String?
+  imageUrl     String
+  ctaLabel     String?
+  ctaTargetUrl String?
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  status       String    @default("ACTIVE") // ACTIVE, INACTIVE
+  displayOrder Int       @default(0)
+  startAt      DateTime?
+  endAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PromotionalPopup {
+  id           String  @id @default(uuid())
+  heading      String
+  description  String? @db.Text
+  imageUrl     String?
+  ctaLabel     String?
+  ctaTargetUrl String?
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  status  String    @default("ACTIVE") // ACTIVE, INACTIVE
+  startAt DateTime?
+  endAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Booking {
+  id          String @id @default(uuid())
+  associateId String
+  associate   User   @relation(fields: [associateId], references: [id])
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  inventoryUnitId String        @unique
+  inventoryUnit   InventoryUnit @relation(fields: [inventoryUnitId], references: [id])
+
+  // Customer Details
+  customerName      String
+  customerPhone     String
+  alternatePhone    String?
+  customerEmail     String?
+  customerAddress   String? @db.Text
+  preferredLocation String?
+
+  // Financial & Booking Details
+  bookingDate    DateTime
+  expectedAmount Decimal
+  paymentMode    String
+  bookingAmount  Decimal
+  notes          String?  @db.Text
+  documents      Json? // Array of file URLs/metadata
+
+  // State Machine
+  status String @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, VERIFIED, REJECTED, PAYMENT_PENDING, CANCELLED
+
+  // Verification
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  rejectionReason String?   @db.Text
+
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  commissionTransaction CommissionTransaction?
+  reviewRequest         ReviewRequest?
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actor      String // "SYSTEM" or user ID
+  action     String // e.g., "CREATE_BOOKING", "UPDATE_INVENTORY_STATUS", "VERIFY_BOOKING"
+  entity     String // e.g., "Booking", "InventoryUnit"
+  entityId   String
+  beforeJson Json?
+  afterJson  Json?
+  metadata   Json? // e.g., IP address, session ID, user agent
+  createdAt  DateTime @default(now())
+}
+
+model CommissionPolicy {
+  id          String @id @default(uuid())
+  associateId String
+  associate   User   @relation(fields: [associateId], references: [id])
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  type  String // PERCENTAGE or FIXED
+  value Decimal
+
+  status String @default("PENDING_APPROVAL") // PENDING_APPROVAL, ACTIVE, INACTIVE
+
+  createdBy       String
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([associateId, projectId]) // An associate can have one policy per project, or one global (null project)
+}
+
+model CommissionTransaction {
+  id        String  @id @default(uuid())
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  associateId String
+  associate   User   @relation(fields: [associateId], references: [id])
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  commissionType  String // snapshot: PERCENTAGE or FIXED
+  commissionValue Decimal // snapshot: value from policy
+  baseAmount      Decimal // snapshot: booking amount
+
+  amountCalculated Decimal
+  amountReceived   Decimal @default(0)
+  amountDue        Decimal
+
+  status String @default("PENDING") // PENDING, PARTIAL, RECEIVED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TravelRequest {
+  id String @id @default(uuid())
+
+  // Requester — ALWAYS from session, never from request body
+  requesterId String
+  requester   User   @relation("TravelRequester", fields: [requesterId], references: [id])
+
+  // Travel details
+  travelDate   DateTime
+  fromLocation String
+  toLocation   String
+  purpose      String   @db.Text
+
+  // Optional project linkage
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  // Customer (free text)
+  customerName String?
+
+  // Distance & mode
+  distanceKm Decimal @db.Decimal(10, 2)
+  travelMode String // OWN_VEHICLE | TAXI | PUBLIC_TRANSPORT | AUTO | OTHER
+
+  // Financial — Decimal to prevent float precision loss
+  amountRequested Decimal @db.Decimal(12, 2)
+
+  // Supporting bill upload
+  billUrl String?
+
+  // Notes
+  notes String? @db.Text
+
+  // State machine
+  // PENDING -> MD_REVIEW -> APPROVED -> PAID
+  // PENDING -> MD_REVIEW -> REJECTED (terminal)
+  status String @default("PENDING")
+
+  // Review fields
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?   @db.Text
+
+  // Payment fields
+  paidBy       String?
+  paidAt       DateTime?
+  amountPaid   Decimal?  @db.Decimal(12, 2)
+  paymentNotes String?   @db.Text
+
+  // Soft-delete guard — never destructively removed
+  isDeleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requesterId])
+  @@index([status])
+  @@index([travelDate])
+}
+
+model SiteVisit {
+  id          String  @id @default(uuid())
+  associateId String
+  associate   User    @relation(fields: [associateId], references: [id])
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id])
+
+  customerName  String
+  customerPhone String
+  customerEmail String?
+
+  visitDate DateTime
+  visitTime String
+
+  status String @default("SCHEDULED") // SCHEDULED, ON_THE_WAY, ARRIVED, CUSTOMER_MET, COMPLETED, CANCELLED, RESCHEDULED
+
+  outcome          String?   @db.Text
+  followUpRequired Boolean   @default(false)
+  followUpDate     DateTime?
+  remarks          String?   @db.Text
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  rescheduledAt DateTime?
+
+  @@index([associateId])
+  @@index([projectId])
+  @@index([visitDate])
+  @@index([status])
+}
+
+model Offer {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?   @db.Text
+  targetAudience String // e.g. "ASSOCIATE", "CUSTOMER", "ALL"
+  projectId      String?
+  project        Project?  @relation(fields: [projectId], references: [id])
+  targetBookings Int?
+  reward         String?   @db.Text
+  startDate      DateTime?
+  endDate        DateTime?
+  status         String    @default("ACTIVE") // ACTIVE, INACTIVE, EXPIRED, SCHEDULED, ARCHIVED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([targetAudience])
+  @@index([status])
+  @@index([projectId])
+}
+
+model ReviewRequest {
+  id                 String   @id @default(uuid())
+  token              String   @unique
+  associateId        String
+  associate          User     @relation(fields: [associateId], references: [id])
+  projectId          String
+  project            Project  @relation(fields: [projectId], references: [id])
+  bookingId          String   @unique
+  booking            Booking  @relation(fields: [bookingId], references: [id])
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  requestDate        DateTime @default(now())
+  interactionSummary String?  @db.Text
+  status             String   @default("PENDING") // PENDING, SUBMITTED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  review Review?
+
+  @@index([associateId])
+  @@index([status])
+  @@index([projectId])
+}
+
+model Review {
+  id                 String        @id @default(uuid())
+  reviewRequestId    String        @unique
+  reviewRequest      ReviewRequest @relation(fields: [reviewRequestId], references: [id])
+  overallExperience  Int
+  communication      Int
+  propertyExperience Int
+  associateSupport   Int
+  writtenReview      String?       @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  category   String   // Booking, Project, Commission, Travel, Team, Approval, Offer, Site Visit, Review, System
+  title      String
+  message    String   @db.Text
+  entityType String?
+  entityId   String?
+  actionUrl  String?
+  eventKey   String?  // Deterministic identifier for duplicate prevention (e.g. BOOKING_VERIFIED_123)
+  isRead     Boolean  @default(false)
+  readAt     DateTime?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([eventKey])
+}
+
+model Faq {
+  id             String   @id @default(uuid())
+  question       String   @db.Text
+  answer         String   @db.Text
+  category       String
+  roleVisibility Json     // Array of allowed roles, e.g. ["MD", "ASSOCIATE"]
+  isPublished    Boolean  @default(true)
+  displayOrder   Int      @default(0)
+
+  relatedTutorialSlug String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublished])
+}
+
+model Tutorial {
+  id             String   @id @default(uuid())
+  title          String
+  slug           String   @unique
+  category       String
+  description    String?  @db.Text
+  roleVisibility Json     // Array of allowed roles
+  isPublished    Boolean  @default(true)
+  displayOrder   Int      @default(0)
+
+  steps          TutorialStep[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublished])
+}
+
+model TutorialStep {
+  id             String   @id @default(uuid())
+  tutorialId     String
+  tutorial       Tutorial @relation(fields: [tutorialId], references: [id], onDelete: Cascade)
+  
+  stepNumber     Int
+  title          String
+  explanation    String   @db.Text
+  targetSelector String?  // CSS selector for the DOM element to highlight (optional)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tutorialId, stepNumber])
+}
+
+model ProjectLayout {
+  id                String   @id @default(uuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id])
+  name              String // e.g. "Ground Floor", "Block A", "Master Layout"
+  version           String   @default("v1")
+  status            String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  canvasWidth       Int      @default(3000)
+  canvasHeight      Int      @default(3000)
+  backgroundImage   String?
+  backgroundOpacity Float    @default(1.0)
+  gridSize          Int      @default(20)
+  
+  createdBy         String?
+  updatedBy         String?
+  publishedBy       String?
+  publishedAt       DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  elements          LayoutElement[]
+
+  @@index([projectId])
+}
+
+model LayoutElement {
+  id              String        @id @default(uuid())
+  layoutId        String
+  layout          ProjectLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  
+  type            String        // PLOT, ROAD, AMENITY, TEXT, etc.
+  inventoryUnitId String?       // Link to existing InventoryUnit
+  inventoryUnit   InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
+  
+  x               Float
+  y               Float
+  width           Float?
+  height          Float?
+  rotation        Float         @default(0)
+  zIndex          Int           @default(1)
+  
+  elementData     Json?         // Custom properties (points, color, labels, road type, plot facing)
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([layoutId])
+}

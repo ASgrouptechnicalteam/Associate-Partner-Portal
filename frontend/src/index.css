@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-navy: #203B73;
+  --color-brand-gold: #E0B040;
+  --color-deep-navy: #172A52;
+  --color-action-blue: #4268E8;
+  --color-app-background: #F4FAFC;
+  --color-card-surface: #FFFFFF;
+  --color-card-secondary: #EAF3F8;
+  --color-primary-text: #172033;
+  --color-muted-text: #667085;
+  --color-border-subtle: #D7E3EA;
+  --color-border: #D7E3EA;
+}
+
+body {
+  background-color: var(--color-app-background);
+  color: var(--color-primary-text);
+}
+
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}

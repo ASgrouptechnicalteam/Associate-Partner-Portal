@@ -1,0 +1,234 @@
+import { Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Get the currently published layout for a project
+export const getPublishedLayout = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = req.params.projectId as string;
+    const layout = await prisma.projectLayout.findFirst({
+      where: { 
+        projectId, 
+        status: 'PUBLISHED' 
+      },
+      include: { elements: true },
+      orderBy: { publishedAt: 'desc' }
+    });
+
+    if (!layout) {
+      return res.status(404).json({ success: false, message: 'No published layout found.' });
+    }
+
+    return res.status(200).json({ success: true, data: layout });
+  } catch (error: any) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: 'Server error retrieving published layout' });
+  }
+};
+
+// Get the current draft layout, or create one if none exists
+export const getDraftLayout = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = req.params.projectId as string;
+    
+    // Find existing draft
+    let layout = await prisma.projectLayout.findFirst({
+      where: { 
+        projectId, 
+        status: 'DRAFT' 
+      },
+      include: { elements: true }
+    });
+
+    // If no draft exists, maybe copy from PUBLISHED or create new
+    if (!layout) {
+      const published = await prisma.projectLayout.findFirst({
+        where: { projectId, status: 'PUBLISHED' },
+        include: { elements: true },
+        orderBy: { publishedAt: 'desc' }
+      });
+
+      if (published) {
+        // Clone published to draft
+        layout = await prisma.projectLayout.create({
+          data: {
+            projectId,
+            name: published.name + ' (Draft)',
+            version: 'v' + (Date.now()),
+            status: 'DRAFT',
+            canvasWidth: published.canvasWidth,
+            canvasHeight: published.canvasHeight,
+            backgroundImage: published.backgroundImage,
+            backgroundOpacity: published.backgroundOpacity,
+            gridSize: published.gridSize,
+            createdBy: req.user?.id,
+            elements: {
+              create: published.elements.map((el: any) => ({
+                type: el.type,
+                inventoryUnitId: el.inventoryUnitId,
+                x: el.x,
+                y: el.y,
+                width: el.width,
+                height: el.height,
+                rotation: el.rotation,
+                zIndex: el.zIndex,
+                elementData: el.elementData as any
+              }))
+            }
+          },
+          include: { elements: true }
+        });
+      } else {
+        // Create an empty draft
+        layout = await prisma.projectLayout.create({
+          data: {
+            projectId,
+            name: 'Master Layout',
+            status: 'DRAFT',
+            createdBy: req.user?.id
+          },
+          include: { elements: true }
+        });
+      }
+    }
+
+    return res.status(200).json({ success: true, data: layout });
+  } catch (error: any) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: 'Server error retrieving draft layout' });
+  }
+};
+
+// Atomic Save Draft
+export const saveDraftLayout = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = req.params.projectId as string;
+    const { 
+      name, 
+      canvasWidth, 
+      canvasHeight, 
+      backgroundImage, 
+      backgroundOpacity, 
+      gridSize,
+      elements // Array of elements
+    } = req.body;
+
+    // Find the current draft
+    const draft = await prisma.projectLayout.findFirst({
+      where: { projectId, status: 'DRAFT' }
+    });
+
+    if (!draft) {
+      return res.status(404).json({ success: false, message: 'Draft not found to save. Call getDraftLayout first.' });
+    }
+
+    // Perform atomic transaction
+    const updatedLayout = await prisma.$transaction(async (tx) => {
+      // 1. Update Layout properties
+      const layout = await tx.projectLayout.update({
+        where: { id: draft.id },
+        data: {
+          name: name || draft.name,
+          canvasWidth: canvasWidth !== undefined ? canvasWidth : draft.canvasWidth,
+          canvasHeight: canvasHeight !== undefined ? canvasHeight : draft.canvasHeight,
+          backgroundImage: backgroundImage !== undefined ? backgroundImage : draft.backgroundImage,
+          backgroundOpacity: backgroundOpacity !== undefined ? backgroundOpacity : draft.backgroundOpacity,
+          gridSize: gridSize !== undefined ? gridSize : draft.gridSize,
+          updatedBy: req.user?.id
+        }
+      });
+
+      // 2. Clear existing elements
+      await tx.layoutElement.deleteMany({
+        where: { layoutId: draft.id }
+      });
+
+      // 3. Create new elements
+      if (elements && elements.length > 0) {
+        await tx.layoutElement.createMany({
+          data: elements.map((el: any) => ({
+            layoutId: draft.id,
+            type: el.type,
+            inventoryUnitId: el.inventoryUnitId || null,
+            x: el.x,
+            y: el.y,
+            width: el.width || null,
+            height: el.height || null,
+            rotation: el.rotation || 0,
+            zIndex: el.zIndex || 1,
+            elementData: el.elementData || null
+          }))
+        });
+      }
+
+      return await tx.projectLayout.findUnique({
+        where: { id: draft.id },
+        include: { elements: true }
+      });
+    });
+
+    return res.status(200).json({ success: true, data: updatedLayout });
+  } catch (error: any) {
+    console.error('Error saving draft:', error);
+    return res.status(500).json({ success: false, message: 'Server error saving layout draft' });
+  }
+};
+
+// Publish a draft layout
+export const publishLayout = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const layoutId = req.params.layoutId as string;
+    
+    const draft = await prisma.projectLayout.findUnique({
+      where: { id: layoutId }
+    });
+
+    if (!draft || draft.status !== 'DRAFT') {
+      return res.status(404).json({ success: false, message: 'Draft layout not found.' });
+    }
+
+    // Atomic publish
+    await prisma.$transaction(async (tx) => {
+      // 1. Archive previously published layout for this project
+      await tx.projectLayout.updateMany({
+        where: {
+          projectId: draft.projectId,
+          status: 'PUBLISHED'
+        },
+        data: {
+          status: 'ARCHIVED'
+        }
+      });
+
+      // 2. Mark this draft as PUBLISHED
+      await tx.projectLayout.update({
+        where: { id: draft.id },
+        data: {
+          status: 'PUBLISHED',
+          publishedAt: new Date(),
+          publishedBy: req.user?.id
+        }
+      });
+    });
+
+    return res.status(200).json({ success: true, message: 'Layout published successfully.' });
+  } catch (error: any) {
+    console.error('Error publishing layout:', error);
+    return res.status(500).json({ success: false, message: 'Server error publishing layout' });
+  }
+};
+
+// Handle background image upload
+export const uploadLayoutBackground = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    const imageUrl = `/uploads/${req.file.filename}`;
+    return res.status(200).json({ success: true, url: imageUrl });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
