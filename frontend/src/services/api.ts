@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://associate-partner-portal.onrender.com/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -21,7 +21,9 @@ export const getStaticUrl = (path: string) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
   
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const apiUrl =
+  import.meta.env.VITE_API_URL ||
+  'https://associate-partner-portal.onrender.com/api';
   const baseUrl = apiUrl.replace(/\/api.*$/, '');
   
   return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;

@@ -34,7 +34,7 @@ const PublicReviewForm: React.FC = () => {
   const fetchRequest = async () => {
     try {
       setLoading(true);
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://associate-partner-portal.onrender.com/api';
       const res = await axios.get(`${apiUrl}/v1/public/reviews/${token}`);
       setRequest(res.data.data);
     } catch (err: any) {
@@ -58,7 +58,7 @@ const PublicReviewForm: React.FC = () => {
     try {
       setSubmitting(true);
       setError('');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://associate-partner-portal.onrender.com/api';
       await axios.post(`${apiUrl}/v1/public/reviews/${token}`, formData);
       setSuccess(true);
     } catch (err: any) {
