@@ -1,0 +1,36 @@
+- [ ] **1. Schema & Migration**
+  - [ ] Inspect existing `ProjectLayout` schema and previous migrations.
+  - [ ] Add `layoutType String @default("PLOTTED")` to `ProjectLayout` using `npx prisma migrate dev --name add_layout_type` (or `db push` if there's no migration history, but user explicitly asked to try migration first).
+  - [ ] Regenerate prisma client.
+- [ ] **2. Backend: Inventory API & Validation**
+  - [ ] Update `validateUpdateInventoryStatus` in `inventoryValidator.ts` to include `RESERVED`, `HOLD`, `REGISTERED`, `SOLD`.
+  - [ ] Update `inventoryService.ts` to log an `AuditLog` entry when status changes.
+- [ ] **3. Backend: Layout Publish Logic**
+  - [ ] Modify `publishLayout` in `layoutController.ts` to extract `PLOT` and `APARTMENT_UNIT` elements.
+  - [ ] Implement robust upsert logic in `publishLayout`: check if `InventoryUnit` exists for `projectId` + `unitNumber`. If exists, update metadata/size/price but DO NOT overwrite `status`. If it doesn't exist, create it with `AVAILABLE`.
+  - [ ] Sync `inventoryUnitId` back to the `LayoutElement`.
+- [ ] **4. Frontend: "Add Unit" Fix**
+  - [ ] Inspect `ProjectDetails.tsx` to find why it's broken (already found: no onClick handler).
+  - [ ] Create `AddUnitModal.tsx` component.
+  - [ ] Connect `Add Unit` button to modal and `POST /api/inventory` endpoint. Refresh the UI upon success.
+- [ ] **5. Frontend: Layout Designer - Plotted**
+  - [ ] Update `LayoutDesigner.tsx` and `Toolbar.tsx` for layout type selection.
+  - [ ] Implement `POLYGON` plot rendering in Konva.
+  - [ ] Implement editable polygon points.
+  - [ ] Implement `CURVED_ROAD` rendering (Bezier/Spline).
+- [ ] **6. Frontend: Layout Designer - Apartment**
+  - [ ] Create `ApartmentGeneratorModal.tsx`.
+  - [ ] Add "Generate Apartment Block" button to `Toolbar.tsx`.
+  - [ ] Implement logical unit generation logic: Tower Name, Floors, Units/Floor -> A101, A102, etc. and add them as `APARTMENT_UNIT` to layout elements.
+- [ ] **7. Frontend: Inventory Status Control**
+  - [ ] In `ProjectDetails.tsx`, replace static status text with `<select>` dropdown for MD/AM.
+  - [ ] Handle `PATCH /api/inventory/:id/status` API call on change.
+  - [ ] Handle error rollback.
+- [ ] **8. Frontend: Color Sync**
+  - [ ] Ensure layout plots/units color themselves based on the associated `InventoryUnit.status`.
+- [ ] **9. Build & Testing**
+  - [ ] Run `npm run build`.
+  - [ ] Perform Plotted layout test (irregular plot, curved road, publish, status change).
+  - [ ] Perform Apartment layout test (generation, publish, verify DB).
+- [ ] **10. Final Report**
+  - [ ] Create `layout_inventory_implementation_report.md`.
