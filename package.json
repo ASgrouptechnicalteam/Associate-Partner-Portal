@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "start:frontend": "npm run dev --workspace=frontend",
-    "start:backend": "npm run dev --workspace=backend",
+    "start:backend": "npm run start --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
     "build:backend": "npm run build --workspace=backend",
     "build": "npm run build:frontend && npm run build:backend"
