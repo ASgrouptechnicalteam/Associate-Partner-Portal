@@ -67,7 +67,7 @@ test.describe('Phase 7 Team — Associate view', () => {
   test('IDOR: API 403 when targeting unrelated user statistics', async ({ page }) => {
     await goToTeam(page);
     const response = await page.request.get(
-      'http://localhost:5000/api/team/statistics?targetId=17851068-285f-4a7e-9930-5338574c0a1c'
+      'https://associate-partner-portal.onrender.com/api/team/statistics?targetId=17851068-285f-4a7e-9930-5338574c0a1c'
     );
     // Without the session cookie from browser context it should be 401
     // If the browser does forward cookies (same origin context), it should be 403

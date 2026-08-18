@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://associate-partner-portal.onrender.com/api';
 
 async function run() {
   console.log('Testing Layout API Endpoints...');
@@ -48,7 +48,7 @@ async function run() {
   const pubRes = await axios.get(`${API_URL}/projects/${project.id}/layout/published`, config);
   console.log(`Published Layout ID: ${pubRes.data.data.id}`);
   console.log(`Published Elements: ${pubRes.data.data.elements.length}`);
-  
+
   console.log('Test completed successfully!');
 }
 

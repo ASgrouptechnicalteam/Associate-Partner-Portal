@@ -3,7 +3,7 @@ const assert = require('assert');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = 'https://associate-partner-portal.onrender.com/api/v1';
 
 async function runTests() {
   console.log('=== Phase 11 API Tests (Reviews) ===');
@@ -16,15 +16,15 @@ async function runTests() {
 
   try {
     // 1. Setup Auth
-    let res = await axios.post(`http://localhost:5000/api/auth/login`, { email: 'md@sonthillu.com', password: 'Password123!' });
+    let res = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, { email: 'md@sonthillu.com', password: 'Password123!' });
     mdCookie = res.headers['set-cookie'][0];
-    
-    res = await axios.post(`http://localhost:5000/api/auth/login`, { email: 'associate@sonthillu.com', password: 'Password123!' });
+
+    res = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, { email: 'associate@sonthillu.com', password: 'Password123!' });
     associateCookie = res.headers['set-cookie'][0];
     associateId = res.data.user.id;
 
     // Login a second associate (we created one in restore_passwords or we can just create a dummy one)
-    res = await axios.post(`http://localhost:5000/api/auth/login`, { email: 'manager@sonthillu.com', password: 'Password123!' });
+    res = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, { email: 'manager@sonthillu.com', password: 'Password123!' });
     associate2Cookie = res.headers['set-cookie'][0];
 
     // 2. Setup Data (Need a VERIFIED booking)
@@ -69,7 +69,7 @@ async function runTests() {
 
     // --- REVIEWS TESTS ---
     console.log('\n--- Review Requests ---');
-    
+
     // 3. Unauthenticated request -> 401
     try {
       await axios.get(`${API_URL}/reviews/requests`);

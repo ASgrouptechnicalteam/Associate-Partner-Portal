@@ -1,7 +1,7 @@
 const axios = require('axios');
 const assert = require('assert');
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = 'https://associate-partner-portal.onrender.com/api/v1';
 
 async function runTests() {
   console.log('=== Phase 10 API Tests ===');
@@ -11,15 +11,15 @@ async function runTests() {
 
   try {
     // 1. Setup Auth
-    let res = await axios.post(`http://localhost:5000/api/auth/login`, { email: 'md@sonthillu.com', password: 'Password123!' });
+    let res = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, { email: 'md@sonthillu.com', password: 'Password123!' });
     const mdCookie = res.headers['set-cookie'][0];
-    
-    res = await axios.post(`http://localhost:5000/api/auth/login`, { email: 'associate@sonthillu.com', password: 'Password123!' });
+
+    res = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, { email: 'associate@sonthillu.com', password: 'Password123!' });
     const associateCookie = res.headers['set-cookie'][0];
 
     // --- CAROUSEL TESTS ---
     console.log('\n--- Carousel ---');
-    
+
     // 2. Unauthenticated access
     try {
       await axios.get(`${API_URL}/carousel`);
@@ -142,7 +142,7 @@ async function runTests() {
     try {
       await axios.delete(`${API_URL}/popups/${newPopup.data.data.id}`, { headers: { Cookie: associateCookie } });
       throw new Error('Should have failed');
-    } catch(err) {
+    } catch (err) {
       assert(err.response.status === 403, 'Expected 403 for associate mutation');
       console.log('✅ PASS  Associate mutation rejected for popups');
     }

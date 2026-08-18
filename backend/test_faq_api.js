@@ -1,17 +1,17 @@
 const axios = require('axios');
 const assert = require('assert');
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = 'https://associate-partner-portal.onrender.com/api/v1';
 
 async function runTests() {
   console.log('=== Phase 13 API Tests (FAQ) ===');
 
   try {
     // 1. Setup Auth
-    let res = await axios.post(`http://localhost:5000/api/auth/login`, { email: 'md@sonthillu.com', password: 'Password123!' });
+    let res = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, { email: 'md@sonthillu.com', password: 'Password123!' });
     const mdCookie = res.headers['set-cookie'][0];
-    
-    res = await axios.post(`http://localhost:5000/api/auth/login`, { email: 'associate@sonthillu.com', password: 'Password123!' });
+
+    res = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, { email: 'associate@sonthillu.com', password: 'Password123!' });
     const associateCookie = res.headers['set-cookie'][0];
 
     // 2. Unauthenticated read -> 401
@@ -78,7 +78,7 @@ async function runTests() {
     const visibleFaqs = res.data.data;
     const seesMdFaq = visibleFaqs.find(f => f.id === mdOnlyFaq.data.data.id);
     const seesUnpublished = visibleFaqs.find(f => f.id === unpublishedFaq.data.data.id);
-    
+
     assert(!seesMdFaq, 'Associate should not see MD-only FAQ');
     assert(!seesUnpublished, 'Associate should not see unpublished FAQ');
     console.log('✅ PASS  Role and Published filtering works');

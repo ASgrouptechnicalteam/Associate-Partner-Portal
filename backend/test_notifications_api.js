@@ -1,13 +1,13 @@
 const axios = require('axios');
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = 'https://associate-partner-portal.onrender.com/api/v1';
 
 async function testNotifications() {
   console.log('--- Testing Notifications API ---');
 
   let adminCookie;
   try {
-    const loginRes = await axios.post(`http://localhost:5000/api/auth/login`, {
+    const loginRes = await axios.post(`https://associate-partner-portal.onrender.com/api/auth/login`, {
       email: 'md@sonthillu.com',
       password: 'Password123!'
     });

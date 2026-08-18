@@ -9,15 +9,15 @@ test.describe('Phase 10: Offers and Carousel CMS', () => {
 
   test.beforeAll(async ({ request }) => {
     // Login as MD
-    const mdLogin = await request.post('http://localhost:5000/api/auth/login', {
+    const mdLogin = await request.post('https://associate-partner-portal.onrender.com/api/auth/login', {
       data: { email: 'md@sonthillu.com', password: 'Password123!' }
     });
     const mdCookies = mdLogin.headers()['set-cookie'];
     // Just pass the cookie string directly
-    mdCookie = mdCookies.split(';')[0]; 
+    mdCookie = mdCookies.split(';')[0];
 
     // Login as Associate
-    const assocLogin = await request.post('http://localhost:5000/api/auth/login', {
+    const assocLogin = await request.post('https://associate-partner-portal.onrender.com/api/auth/login', {
       data: { email: 'associate@sonthillu.com', password: 'Password123!' }
     });
     const assocCookies = assocLogin.headers()['set-cookie'];
@@ -38,7 +38,7 @@ test.describe('Phase 10: Offers and Carousel CMS', () => {
 
     await page.getByRole('button', { name: 'Add Banner' }).click();
     await page.fill('input[type="text"]', 'E2E Carousel Item');
-    
+
     // We intercept the upload instead of uploading a real file
     await page.route('**/api/v1/carousel', route => route.fulfill({
       status: 201,
@@ -117,7 +117,7 @@ test.describe('Phase 10: Offers and Carousel CMS', () => {
     await expect(page.locator('text=E2E Read Offer')).toBeVisible();
     await expect(page.locator('text=Progress')).toBeVisible();
     await expect(page.locator('text=3 / 10')).toBeVisible();
-    
+
     // MD create button should be hidden
     await expect(page.locator('text=Create Offer')).not.toBeVisible();
   });
@@ -132,7 +132,7 @@ test.describe('Phase 10: Offers and Carousel CMS', () => {
 
     await page.goto('/cms/carousel');
     await expect(page).toHaveURL('/dashboard'); // Should redirect
-    
+
     await page.goto('/cms/popup');
     await expect(page).toHaveURL('/dashboard'); // Should redirect
   });

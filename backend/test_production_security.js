@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 async function testSecurity() {
-  const API_URL = 'http://localhost:5000/api';
+  const API_URL = 'https://associate-partner-portal.onrender.com/api';
   let passed = 0;
   let failed = 0;
 

@@ -8,12 +8,12 @@ const prisma = new PrismaClient();
 
 async function runTests() {
   console.log('--- STARTING PHASE 5 VERIFICATION TESTS ---');
-  
+
   // 1. Setup Data
   const associate1 = await prisma.user.findFirst({ where: { role: { name: 'ASSOCIATE' } } });
   const associate2 = await prisma.user.findFirst({ where: { role: { name: 'ASSOCIATE' }, id: { not: associate1?.id } } });
   const md = await prisma.user.findFirst({ where: { role: { name: 'MD' } } });
-  
+
   if (!associate1 || !associate2 || !md) {
     console.error('Missing required test users.');
     return;
@@ -27,11 +27,11 @@ async function runTests() {
     console.error('Missing required project or available inventory.');
     return;
   }
-  
+
   const unitToBook = project.inventory[0];
-  
+
   console.log(`Using Project ${project.name}, Unit ${unitToBook.unitNumber}`);
-  
+
   // Create tokens manually for testing
   const sessionId = 'test-session-123';
   await prisma.user.update({ where: { id: md.id }, data: { activeSessionId: sessionId } });
@@ -39,8 +39,8 @@ async function runTests() {
   const token1 = jwt.sign({ userId: associate1.id, role: 'ASSOCIATE' }, process.env.JWT_SECRET || 'secret');
   const token2 = jwt.sign({ userId: associate2.id, role: 'ASSOCIATE' }, process.env.JWT_SECRET || 'secret');
   const mdToken = jwt.sign({ userId: md.id, role: 'MD', sessionId }, process.env.JWT_SECRET || 'secret');
-  
-  const api = axios.create({ baseURL: 'http://localhost:5000/api', validateStatus: () => true });
+
+  const api = axios.create({ baseURL: 'https://associate-partner-portal.onrender.com/api', validateStatus: () => true });
 
   const bookingPayload = {
     projectId: project.id,
@@ -57,9 +57,9 @@ async function runTests() {
   console.log('--- RUNNING CONCURRENCY TEST ---');
   const req1 = api.post('/bookings', bookingPayload, { headers: { Cookie: `token=${token1}` } });
   const req2 = api.post('/bookings', bookingPayload, { headers: { Cookie: `token=${token2}` } });
-  
+
   const [res1, res2] = await Promise.all([req1, req2]);
-  
+
   let successCount = 0;
   let failCount = 0;
   let successBookingId = null;
@@ -80,21 +80,21 @@ async function runTests() {
   } else {
     console.error(`❌ Inventory State Transition Failed: expected BLOCKED, got ${unitAfter?.status}`);
   }
-  
+
   // 3. Hierarchy / IDOR Test
   console.log('--- RUNNING HIERARCHY IDOR TEST ---');
   const idorToken = successBookingId === res1.data?.data?.id ? token2 : token1;
   const idorRes = await api.get(`/bookings/${successBookingId}`, { headers: { Cookie: `token=${idorToken}` } });
-  
+
   if (idorRes.status === 403 || idorRes.status === 401) {
     console.log('✅ IDOR Test Passed: Unrelated associate denied access.');
   } else {
     console.error(`❌ IDOR Test Failed: Expected 403, got ${idorRes.status}`, idorRes.data);
   }
-  
+
   // 4. API Versioning & MD Auth Test
   const mdReviewRes = await api.patch(`/bookings/${successBookingId}/status`, { status: 'UNDER_REVIEW' }, { headers: { Cookie: `token=${mdToken}` } });
-  
+
   if (mdReviewRes.status === 200) {
     console.log('✅ Status Update Test Passed: MD successfully transitioned to UNDER_REVIEW.');
   } else {
@@ -102,7 +102,7 @@ async function runTests() {
   }
 
   const mdRes = await api.patch(`/bookings/${successBookingId}/status`, { status: 'VERIFIED' }, { headers: { Cookie: `token=${mdToken}` } });
-  
+
   if (mdRes.status === 200) {
     console.log('✅ Status Update Test Passed: MD successfully verified booking.');
   } else {
