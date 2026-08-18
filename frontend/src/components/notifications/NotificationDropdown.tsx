@@ -13,7 +13,7 @@ const NotificationDropdown: React.FC = () => {
 
   const fetchUnreadCount = async () => {
     try {
-      const response = await api.get('/notifications/unread-count');
+      const response = await api.get('/v1/notifications/unread-count');
       setUnreadCount(response.data.count);
     } catch (error) {
       console.error('Failed to fetch unread notifications count:', error);
