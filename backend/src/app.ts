@@ -75,9 +75,9 @@ app.use('/api/v1/tutorials', tutorialRoutes);
 app.use('/api/search', searchRoutes);
 
 // Serve uploaded files (bill documents, project media)
-const uploadDir = process.env.UPLOAD_PATH 
-  ? path.resolve(process.env.UPLOAD_PATH) 
-  : path.join(process.cwd(), 'uploads');
+const uploadDir = process.env.UPLOAD_PATH
+  ? path.resolve(process.env.UPLOAD_PATH)
+  : path.join(__dirname, '../uploads');
 app.use('/uploads', express.static(uploadDir));
 
 // Global Error Handler
