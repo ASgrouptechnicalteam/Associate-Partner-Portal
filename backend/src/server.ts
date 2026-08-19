@@ -1,8 +1,12 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables from the root .env
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+// Load backend environment variables.
+// Local development: backend/.env
+// Render production: environment variables configured in Render.
+dotenv.config({
+  path: path.resolve(process.cwd(), '.env')
+});
 
 import app from './app';
 
