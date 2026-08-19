@@ -1,4 +1,3 @@
-import sftpTestRoutes from './routes/sftpTestRoutes';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -74,7 +73,7 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/faqs', faqRoutes);
 app.use('/api/v1/tutorials', tutorialRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/sftp-test', sftpTestRoutes);
+
 
 // Serve uploaded files (bill documents, project media)
 const uploadDir = process.env.UPLOAD_PATH
