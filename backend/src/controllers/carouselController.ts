@@ -1,3 +1,4 @@
+import { handleUploadedFile } from '../utils/handleUploadedFile';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { CarouselService } from '../services/carouselService';
@@ -119,7 +120,10 @@ export const uploadCarouselImage = async (req: AuthenticatedRequest, res: Respon
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
-    const url = `/uploads/${req.file.filename}`;
+    const url = await handleUploadedFile(
+  req.file,
+  'carousel'
+);
     return res.status(200).json({ success: true, data: { url } });
   } catch (error: any) {
     console.error('Error uploading carousel image:', error);

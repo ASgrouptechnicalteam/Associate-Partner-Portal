@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { TravelService } from '../services/travelService';
+import { handleUploadedFile } from '../utils/handleUploadedFile';
 
 // ── Validators ────────────────────────────────────────────────────
 const CreateTravelSchema = z.object({
@@ -50,7 +51,9 @@ export const createTravelRequest = async (req: AuthenticatedRequest, res: Respon
 
     const data = parsed.data;
     // Clean empty optional strings to undefined
-    const billUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+    const billUrl = req.file
+  ? await handleUploadedFile(req.file, 'travel')
+  : undefined;
 
     const travel = await TravelService.createTravelRequest(
       req.user!.id,
