@@ -1,8 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/api';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
+import { Avatar } from '../../components/ui/Avatar';
 import { useAuth } from '../../context/AuthContext';
+
+const DESIGNATIONS = [
+  { name: 'Marketing Manager', commission: 10 },
+  { name: 'Senior Marketing Manager', commission: 12 },
+  { name: 'Assistant General Manager', commission: 14 },
+  { name: 'Senior Assistant General Manager', commission: 16 },
+  { name: 'Deputy General Manager', commission: 18 },
+  { name: 'Senior Deputy General Manager', commission: 20 },
+  { name: 'General Manager', commission: 22 },
+  { name: 'Senior General Manager', commission: 24 },
+  { name: 'Chief General Manager', commission: 26 },
+  { name: 'Senior Chief General Manager', commission: 28 },
+  { name: 'Marketing Director', commission: 30 }
+];
 
 const EditUser: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -13,7 +28,20 @@ const EditUser: React.FC = () => {
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [teams, setTeams] = useState<any[]>([]);
+  
+  // Referral State
+  const [referralUserId, setReferralUserId] = useState('');
+  const [referralUser, setReferralUser] = useState<any>(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
+
+  // Marketing Director Team Head State
+  const [headedTeamId, setHeadedTeamId] = useState('');
+
   const [formData, setFormData] = useState({
+    userIdentifier: '',
+    status: '',
     // 1. Personal
     name: '',
     email: '',
@@ -40,8 +68,25 @@ const EditUser: React.FC = () => {
     department: '',
     workLocation: '',
     dateOfJoining: '',
-    commissionPercentage: ''
+    designation: '',
+    teamId: '',
+    role: ''
   });
+
+  useEffect(() => {
+    fetchTeams();
+  }, []);
+
+  const fetchTeams = async () => {
+    try {
+      const response = await api.get('/team/main-teams');
+      if (response.data.success) {
+        setTeams(response.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load teams');
+    }
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -49,7 +94,10 @@ const EditUser: React.FC = () => {
         const response = await api.get(`/users/${id}`);
         if (response.data.success) {
           const user = response.data.user;
+          
           setFormData({
+            userIdentifier: user.userIdentifier || '',
+            status: user.status || '',
             name: user.name || '',
             email: user.email || '',
             phone: user.phone || '',
@@ -71,8 +119,32 @@ const EditUser: React.FC = () => {
             department: user.department || '',
             workLocation: user.workLocation || '',
             dateOfJoining: user.dateOfJoining ? user.dateOfJoining.split('T')[0] : '',
-            commissionPercentage: user.commissionPercentage !== null ? user.commissionPercentage.toString() : ''
+            designation: user.designation || '',
+            teamId: user.teamId || '',
+            role: user.role || ''
           });
+
+          // Pre-populate referral user if parentId is set (but not for Team Heads)
+          if (user.parent) {
+             setReferralUserId(user.parent.userIdentifier || '');
+             setReferralUser(user.parent);
+          }
+
+          // Pre-populate headedTeamId if user is a team head
+          if (teams.length > 0) {
+            const headedTeam = teams.find(t => t.headUserId === user.id);
+            if (headedTeam) {
+              setHeadedTeamId(headedTeam.id);
+            }
+          } else {
+             // If teams haven't loaded yet, we'll need to fetch the team separately
+             api.get('/team/main-teams').then(res => {
+                 if (res.data.success) {
+                     const headedTeam = res.data.data.find((t: any) => t.headUserId === user.id);
+                     if (headedTeam) setHeadedTeamId(headedTeam.id);
+                 }
+             });
+          }
         }
       } catch (err: any) {
         setError('Failed to load associate details');
@@ -80,12 +152,58 @@ const EditUser: React.FC = () => {
         setFetching(false);
       }
     };
-    fetchUser();
-  }, [id]);
+    if (teams.length > 0) {
+       fetchUser();
+    } else {
+       // if teams fails to load or takes long, still fetch user
+       fetchUser();
+    }
+  }, [id, teams.length === 0]); // Dependency trick to run once, but also after teams might load initially
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReferralSearch = async () => {
+    if (!referralUserId.trim()) {
+      setReferralUser(null);
+      setReferralError(null);
+      // We don't clear teamId automatically on edit unless user wants to.
+      return;
+    }
+    
+    setReferralLoading(true);
+    setReferralError(null);
+    setReferralUser(null);
+    
+    try {
+      const response = await api.get(`/users?search=${encodeURIComponent(referralUserId.trim())}`);
+      if (response.data.success && response.data.users.length > 0) {
+        const found = response.data.users.find((u: any) => u.userIdentifier === referralUserId.trim().toUpperCase());
+        if (found) {
+          if (found.id === id) {
+             setReferralError('Cannot assign self as referral');
+          } else {
+             setReferralUser(found);
+             // Automatically set team from referral
+             if (found.teamId) {
+               setFormData(prev => ({ ...prev, teamId: found.teamId }));
+             }
+          }
+        } else {
+          setReferralError('User not found');
+        }
+      } else {
+        setReferralError('User not found');
+      }
+    } catch (err) {
+      setReferralError('Failed to lookup user');
+    } finally {
+      setReferralLoading(false);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  const currentCommission = DESIGNATIONS.find(d => d.name === formData.designation)?.commission || 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,11 +211,25 @@ const EditUser: React.FC = () => {
     setLoading(true);
 
     try {
-      const payload = {
+      const payload: any = {
         ...formData,
-        commissionPercentage: formData.commissionPercentage ? parseFloat(formData.commissionPercentage) : undefined
+        commissionPercentage: currentCommission
       };
-      
+
+      if (referralUser) {
+        payload.referralUserId = referralUser.userIdentifier;
+      } else if (!referralUserId) {
+        payload.referralUserId = null; // Clear parent if intentionally emptied
+      }
+
+      if (formData.designation === 'Marketing Director') {
+        if (headedTeamId) {
+           payload.headedTeamId = headedTeamId;
+        } else {
+           payload.headedTeamId = null;
+        }
+      }
+
       const response = await api.patch(`/users/${id}`, payload);
       if (response.data.success) {
         navigate(`/users/${id}`);
@@ -113,7 +245,10 @@ const EditUser: React.FC = () => {
     return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-navy"></div></div>;
   }
 
-  const canEditSensitive = currentUser?.role === 'MD' || currentUser?.role === 'ASSOCIATE_MANAGER' || currentUser?.id === id;
+  // Check roles based on backend logic. Usually currentUser.role can be string or object.
+  const userRoleStr = typeof currentUser?.role === 'string' ? currentUser.role : (currentUser?.role as any)?.name;
+  const canEditSensitive = userRoleStr === 'MD' || userRoleStr === 'CHANNEL_PARTNER_MANAGER' || currentUser?.id === id;
+  const canAssignTeamHead = userRoleStr === 'MD' || userRoleStr === 'CHANNEL_PARTNER_MANAGER';
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -136,6 +271,27 @@ const EditUser: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-8">
           
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 bg-gray-50 p-4 rounded-md border border-gray-100 mb-6">
+             <div>
+               <label className="mb-1 block text-sm font-medium text-gray-500">User ID</label>
+               <div className="text-lg font-bold text-primary-gold">{formData.userIdentifier}</div>
+             </div>
+             <div>
+               <label className="mb-1 block text-sm font-medium text-gray-500">Status</label>
+               <select 
+                  name="status" 
+                  value={formData.status} 
+                  onChange={handleChange}
+                  className="rounded-md border border-gray-300 px-3 py-1 outline-none focus:border-brand-gold text-sm"
+               >
+                 <option value="ACTIVE">ACTIVE</option>
+                 <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
+                 <option value="INACTIVE">INACTIVE</option>
+                 <option value="SUSPENDED">SUSPENDED</option>
+               </select>
+             </div>
+          </div>
+
           {/* 1. Personal Information */}
           <section>
             <h2 className="mb-4 text-lg font-semibold text-gray-800 border-b pb-2">1. Personal Information</h2>
@@ -238,32 +394,144 @@ const EditUser: React.FC = () => {
             </section>
           )}
 
-          {/* 5. Official Associate Details */}
+          {/* 5. Official Details */}
           <section>
-            <h2 className="mb-4 text-lg font-semibold text-gray-800 border-b pb-2">5. Official Associate Details</h2>
+            <h2 className="mb-4 text-lg font-semibold text-gray-800 border-b pb-2">5. Official Details</h2>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Official Job Title</label>
-                <input type="text" name="jobTitle" className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.jobTitle} onChange={handleChange} />
+                <label className="mb-1 block text-sm font-medium text-gray-700">Designation *</label>
+                <select name="designation" required className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.designation} onChange={handleChange}>
+                  <option value="">Select Designation</option>
+                  {DESIGNATIONS.map(d => (
+                    <option key={d.name} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
               </div>
+              
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Department</label>
-                <input type="text" name="department" className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.department} onChange={handleChange} />
+                <label className="mb-1 block text-sm font-medium text-gray-700">Commission Percentage</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    readOnly 
+                    className="w-full rounded-md border border-gray-300 bg-gray-50 px-4 py-2 outline-none text-gray-600 font-medium" 
+                    value={formData.designation ? `${currentCommission}%` : 'Select Designation'} 
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">READ ONLY</div>
+                </div>
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Work Location</label>
-                <input type="text" name="workLocation" className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.workLocation} onChange={handleChange} />
-              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Date of Joining</label>
                 <input type="date" name="dateOfJoining" className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.dateOfJoining} onChange={handleChange} />
               </div>
+              
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Commission Percentage</label>
-                <input type="number" step="0.01" name="commissionPercentage" className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.commissionPercentage} onChange={handleChange} />
+                <label className="mb-1 block text-sm font-medium text-gray-700">Department</label>
+                <input type="text" name="department" className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.department} onChange={handleChange} />
+              </div>
+              
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Work Location</label>
+                <input type="text" name="workLocation" className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold" value={formData.workLocation} onChange={handleChange} />
               </div>
             </div>
           </section>
+
+          {/* 6. Hierarchy Placement */}
+          <section>
+            <h2 className="mb-4 text-lg font-semibold text-gray-800 border-b pb-2">6. Hierarchy Placement</h2>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Referral User ID</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="e.g. RS-1024"
+                    className="flex-1 rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold uppercase" 
+                    value={referralUserId} 
+                    onChange={(e) => setReferralUserId(e.target.value.toUpperCase())}
+                    onBlur={handleReferralSearch}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleReferralSearch())}
+                  />
+                  <button type="button" onClick={handleReferralSearch} className="rounded-md bg-gray-100 px-4 text-gray-600 hover:bg-gray-200" disabled={referralLoading}>
+                    <Search size={18} />
+                  </button>
+                </div>
+                {referralError && <p className="mt-1 text-sm text-red-600">{referralError}</p>}
+                
+                {referralUser && (
+                  <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Reports To:</h4>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={referralUser.name} imageUrl={referralUser.profileImageUrl} size="md" />
+                      <div>
+                        <p className="font-medium text-gray-900">{referralUser.name}</p>
+                        <p className="text-xs text-gray-500">User ID: {referralUser.userIdentifier}</p>
+                        <p className="text-xs text-gray-500">Designation: {referralUser.designation || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Team</label>
+                {referralUser ? (
+                  <div className="relative">
+                    <select 
+                      disabled 
+                      className="w-full rounded-md border border-gray-300 bg-gray-50 px-4 py-2 outline-none text-gray-600 appearance-none"
+                      value={formData.teamId}
+                    >
+                      <option value="">No Team Assigned</option>
+                      {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">AUTO-ASSIGNED</div>
+                    <p className="mt-1 text-xs text-gray-500">Team automatically inherited from referral user.</p>
+                  </div>
+                ) : (
+                  <select 
+                    name="teamId" 
+                    className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold"
+                    value={formData.teamId}
+                    onChange={handleChange}
+                  >
+                    <option value="">Select Team (Optional)</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* 7. Marketing Director Team Head Assignment */}
+          {formData.designation === 'Marketing Director' && canAssignTeamHead && (
+             <section className="rounded-lg border-2 border-brand-gold bg-yellow-50/50 p-6">
+                <h2 className="mb-4 text-lg font-semibold text-primary-gold border-b border-brand-gold/20 pb-2">7. Team Head Assignment</h2>
+                <p className="text-sm text-gray-600 mb-6">
+                  Because this associate is a Marketing Director, you may optionally assign them as the Head of a Main Team.
+                  Doing so will set them as the top organizational root for that team.
+                </p>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                   <div>
+                     <label className="mb-1 block text-sm font-medium text-gray-700">Select Main Team</label>
+                     <select 
+                       value={headedTeamId}
+                       onChange={(e) => setHeadedTeamId(e.target.value)}
+                       className="w-full rounded-md border border-gray-300 px-4 py-2 outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold bg-white"
+                     >
+                       <option value="">-- No Team Head Assignment --</option>
+                       {teams.map(t => (
+                         <option key={t.id} value={t.id}>{t.name}</option>
+                       ))}
+                     </select>
+                   </div>
+                </div>
+             </section>
+          )}
 
           <div className="flex justify-end gap-4 border-t border-gray-100 pt-6">
             <button

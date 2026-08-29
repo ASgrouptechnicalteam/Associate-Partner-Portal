@@ -21,7 +21,7 @@ export class AuthorizationService {
         expectedAmount: true,
         status: true,
         project: { select: { name: true } },
-        associate: { select: { name: true, associateId: true } }
+        user: { select: { name: true, userIdentifier: true } }
       },
       orderBy: { bookingDate: 'desc' }
     });
@@ -33,27 +33,13 @@ export class AuthorizationService {
         id: true,
         requestType: true,
         createdAt: true,
-        requester: { select: { name: true, associateId: true } },
-        targetAssociate: { select: { name: true, associateId: true } }
+        requester: { select: { name: true, userIdentifier: true } },
+        targetUser: { select: { name: true, userIdentifier: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    // 4. Travel Requests
-    const travelRequests = await prisma.travelRequest.findMany({
-      where: { status: 'MD_REVIEW' },
-      select: {
-        id: true,
-        travelDate: true,
-        fromLocation: true,
-        toLocation: true,
-        amountRequested: true,
-        requester: { select: { name: true, associateId: true } }
-      },
-      orderBy: { travelDate: 'desc' }
-    });
-
-    // 5. Commission Policies
+    // 4. Commission Policies
     const commissionPolicies = await prisma.commissionPolicy.findMany({
       where: { status: 'PENDING_APPROVAL' },
       select: {
@@ -61,7 +47,7 @@ export class AuthorizationService {
         type: true,
         value: true,
         createdAt: true,
-        associate: { select: { name: true, associateId: true } },
+        user: { select: { name: true, userIdentifier: true } },
         project: { select: { name: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -71,9 +57,8 @@ export class AuthorizationService {
       projects: { count: projects.length, items: projects },
       bookings: { count: bookings.length, items: bookings },
       teamRequests: { count: teamRequests.length, items: teamRequests },
-      travelRequests: { count: travelRequests.length, items: travelRequests },
       commissionPolicies: { count: commissionPolicies.length, items: commissionPolicies },
-      total: projects.length + bookings.length + teamRequests.length + travelRequests.length + commissionPolicies.length
+      total: projects.length + bookings.length + teamRequests.length + commissionPolicies.length
     };
   }
 }

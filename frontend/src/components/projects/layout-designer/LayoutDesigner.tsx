@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api, { getStaticUrl } from '../../../services/api';
-import { ZoomIn, ZoomOut, Save, ArrowRight } from 'lucide-react';
-import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Transformer, Group } from 'react-konva';
+import { ZoomIn, ZoomOut, Save, ArrowRight, Download } from 'lucide-react';
+import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Transformer, Group, Line } from 'react-konva';
 import useImage from 'use-image';
+import { getInventoryStatusColor } from '../../../utils/statusColors';
+import { calculatePlotPolygon } from '../../../utils/geometryUtils';
 import { Toolbar } from './Toolbar';
 import { PropertiesPanel } from './PropertiesPanel';
 
 interface LayoutDesignerProps {
   projectId: string;
   inventoryUnits: any[];
+  onRefreshProject?: () => void;
 }
 
 const BackgroundImage = ({ url, opacity, width, height }: { url: string, opacity: number, width: number, height: number }) => {
@@ -16,7 +19,7 @@ const BackgroundImage = ({ url, opacity, width, height }: { url: string, opacity
   return <KonvaImage image={image} width={width} height={height} opacity={opacity} />;
 };
 
-export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inventoryUnits }) => {
+export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inventoryUnits, onRefreshProject }) => {
   const [layout, setLayout] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -139,6 +142,15 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
         bgUrl = uploadRes.data.url;
       }
 
+      // Filter out any PLOT or UNIT that lacks an inventoryUnitId to prevent sending orphans
+      const cleanElements = elements.filter(el => {
+        if ((el.type === 'PLOT' || el.type === 'UNIT') && !el.inventoryUnitId) {
+          console.warn('Stripping orphan element from save payload:', el.id);
+          return false;
+        }
+        return true;
+      });
+
       await api.post(`/projects/${projectId}/layout/draft`, {
         name: layout.name,
         canvasWidth: layout.canvasWidth,
@@ -146,7 +158,7 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
         backgroundImage: bgUrl,
         backgroundOpacity: layout.backgroundOpacity,
         gridSize: layout.gridSize,
-        elements: elements.map(el => ({
+        elements: cleanElements.map(el => ({
           ...el,
           elementData: el.elementData // Axios handles JSON serialization
         }))
@@ -154,9 +166,9 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
       
       setIsDirty(false);
       alert('Draft saved successfully!');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to save draft.');
+      alert(err.response?.data?.message || 'Failed to save draft.');
     } finally {
       setSaving(false);
     }
@@ -196,6 +208,30 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
       } finally {
         setSaving(false);
       }
+    }
+  };
+
+  const handleDownload = () => {
+    if (stageRef.current) {
+      // Temporarily hide transformer before exporting
+      const wasTransformerVisible = trRef.current && trRef.current.nodes().length > 0;
+      if (wasTransformerVisible) {
+        trRef.current.nodes([]);
+      }
+      
+      const dataURL = stageRef.current.toDataURL({ pixelRatio: 2 });
+      
+      if (wasTransformerVisible && selectedIds.length > 0) {
+        const nodes = selectedIds.map(id => layerRef.current.findOne(`#el-${id}`)).filter((n: any) => n !== undefined);
+        trRef.current.nodes(nodes);
+      }
+      
+      const link = document.createElement('a');
+      link.download = `project-${projectId}-layout.png`;
+      link.href = dataURL;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 
@@ -323,6 +359,51 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
     setCurrentTool('SELECT');
   };
 
+  const addInventoryUnit = (unit: any) => {
+    const stage = stageRef.current;
+    const scale = stage.scaleX();
+    const viewCenterX = (-stage.x() + stage.width() / 2) / scale;
+    const viewCenterY = (-stage.y() + stage.height() / 2) / scale;
+    
+    // Snap to grid initially
+    const g = layout.gridSize || 20;
+    const snappedX = Math.round(viewCenterX / g) * g;
+    const snappedY = Math.round(viewCenterY / g) * g;
+
+    // Use area or a default size
+    let width = 60;
+    let height = 100;
+    if (unit.propertyType === 'UNIT') {
+      width = 80;
+      height = 80;
+    }
+
+    const newElement = {
+      id: `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      type: unit.propertyType === 'PLOT' ? 'PLOT' : 'UNIT',
+      x: snappedX,
+      y: snappedY,
+      width,
+      height,
+      rotation: 0,
+      zIndex: elements.length + 1,
+      inventoryUnitId: unit.id,
+      elementData: { 
+        plotNumber: unit.unitNumber,
+        facing: unit.facing,
+        northBoundary: unit.northBoundary,
+        southBoundary: unit.southBoundary,
+        eastBoundary: unit.eastBoundary,
+        westBoundary: unit.westBoundary
+      }
+    };
+    
+    setElements([...elements, newElement]);
+    setSelectedIds([newElement.id]);
+    setIsDirty(true);
+    setCurrentTool('SELECT');
+  };
+
   const updateSelectedElements = (updates: any) => {
     setElements(prev => prev.map(el => selectedIds.includes(el.id) ? { ...el, ...updates } : el));
     setIsDirty(true);
@@ -337,30 +418,25 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
   const duplicateSelectedElements = () => {
     const toDuplicate = elements.filter(el => selectedIds.includes(el.id));
     const newElements = toDuplicate.map(el => {
-      // Find next plot number if duplicating a plot
-      let newPlotNum = el.elementData?.plotNumber;
-      if (el.type === 'PLOT') {
-        const existingPlots = elements.filter(e => e.type === 'PLOT' && e.elementData?.plotNumber).map(e => parseInt(e.elementData.plotNumber)).filter(n => !isNaN(n));
-        const maxNum = existingPlots.length > 0 ? Math.max(...existingPlots) : 100;
-        newPlotNum = (maxNum + 1).toString();
-      }
-
-      return {
-        ...el,
-        id: `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        x: el.x + (layout.gridSize || 20),
-        y: el.y + (layout.gridSize || 20),
-        zIndex: elements.length + 1,
-        inventoryUnitId: null, // Critical: DO NOT copy inventory unit mapping
-        elementData: {
-          ...el.elementData,
-          plotNumber: el.type === 'PLOT' ? newPlotNum : el.elementData?.plotNumber
+        if (el.type === 'PLOT' || el.type === 'UNIT') {
+          return null; // Cannot duplicate plots or units to prevent orphans
         }
-      };
-    });
-    setElements([...elements, ...newElements]);
-    setSelectedIds(newElements.map(el => el.id));
-    setIsDirty(true);
+
+        return {
+          ...el,
+          id: `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          x: el.x + (layout.gridSize || 20),
+          y: el.y + (layout.gridSize || 20),
+          zIndex: elements.length + 1,
+          inventoryUnitId: null, // Critical: DO NOT copy inventory unit mapping
+          elementData: {
+            ...el.elementData
+          }
+        };
+      }).filter(Boolean);
+      setElements([...elements, ...newElements as any]);
+      setSelectedIds(newElements.map((el: any) => el.id));
+      setIsDirty(true);
   };
 
   const alignElements = (alignment: string) => {
@@ -482,6 +558,13 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
 
         <div className="flex items-center gap-3">
           <button 
+            onClick={handleDownload}
+            className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-bold bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            <Download size={16} /> Download
+          </button>
+          
+          <button 
             onClick={handleSaveDraft}
             disabled={saving || !isDirty}
             className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm font-bold ${isDirty ? 'bg-primary-navy text-white hover:bg-opacity-90' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
@@ -570,24 +653,20 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
                 let textValue = el.elementData?.label || "?";
                 let isText = false;
 
-                if (el.type === 'PLOT') {
+                let targetInv: any = null;
+
+                if (el.type === 'PLOT' || el.type === 'UNIT') {
                   // If it has inventory, get status color
                   fill = "#22c55e"; // green-500 default
                   stroke = "#15803d"; // green-700
                   strokeWidth = 2;
                   
                   if (el.inventoryUnitId) {
-                    const inv = inventoryUnits.find(iu => iu.id === el.inventoryUnitId);
-                    if (inv) {
-                      textValue = inv.unitNumber;
-                      switch(inv.status) {
-                        case 'AVAILABLE': fill = "#22c55e"; stroke = "#15803d"; break; // green
-                        case 'RESERVED': fill = "#f97316"; stroke = "#c2410c"; break; // orange
-                        case 'HOLD': fill = "#eab308"; stroke = "#a16207"; break; // yellow
-                        case 'BOOKED': fill = "#3b82f6"; stroke = "#1d4ed8"; break; // blue
-                        case 'REGISTERED': fill = "#ef4444"; stroke = "#b91c1c"; break; // red
-                        case 'SOLD': fill = "#991b1b"; stroke = "#7f1d1d"; break; // dark red
-                      }
+                    targetInv = inventoryUnits.find(iu => iu.id === el.inventoryUnitId);
+                    if (targetInv) {
+                      textValue = targetInv.unitNumber;
+                      fill = getInventoryStatusColor(targetInv.status);
+                      stroke = "#1f2937"; // Dark border for better visibility
                     }
                   } else if (el.elementData?.plotNumber) {
                     textValue = el.elementData.plotNumber;
@@ -630,15 +709,50 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
                     }}
                   >
                     {!isText && (
-                      <Rect
-                        width={el.width}
-                        height={el.height}
-                        fill={fill}
-                        stroke={stroke}
-                        strokeWidth={strokeWidth}
-                        cornerRadius={el.type === 'PARK' ? 4 : 2}
-                        opacity={0.9}
-                      />
+                      (el.type === 'PLOT' || el.type === 'UNIT') ? (
+                        <Line
+                          points={(() => {
+                            const w = el.width || 60;
+                            const h = el.height || 100;
+                            if (targetInv) {
+                               return calculatePlotPolygon(
+                                 targetInv.northLength,
+                                 targetInv.southLength,
+                                 targetInv.eastLength,
+                                 targetInv.westLength,
+                                 w,
+                                 h
+                               );
+                            }
+                            return [0, 0, w, 0, w, h, 0, h];
+                          })()}
+                          closed={true}
+                          fill={fill}
+                          stroke={stroke}
+                          strokeWidth={strokeWidth}
+                          opacity={0.9}
+                        />
+                      ) : el.type === 'ROAD' && el.elementData?.points && el.elementData.points.length > 0 ? (
+                        <Line
+                          points={el.elementData.points}
+                          stroke={fill}
+                          strokeWidth={el.elementData.roadWidth || el.height || 40}
+                          lineCap="round"
+                          lineJoin="round"
+                          tension={0.3}
+                          opacity={0.9}
+                        />
+                      ) : (
+                        <Rect
+                          width={el.width}
+                          height={el.height}
+                          fill={fill}
+                          stroke={stroke}
+                          strokeWidth={strokeWidth}
+                          cornerRadius={el.type === 'PARK' ? 4 : 2}
+                          opacity={0.9}
+                        />
+                      )
                     )}
                     
                     {isText ? (
@@ -702,6 +816,8 @@ export const LayoutDesigner: React.FC<LayoutDesignerProps> = ({ projectId, inven
           updateSelectedElements={updateSelectedElements}
           deleteSelectedElements={deleteSelectedElements}
           duplicateSelectedElements={duplicateSelectedElements}
+          addInventoryUnit={addInventoryUnit}
+          onRefreshProject={onRefreshProject}
         />
       </div>
     </div>

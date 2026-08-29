@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/currency';
 
@@ -13,6 +13,8 @@ interface InventoryUnit {
   id: string;
   unitNumber: string;
   price: number;
+  shape?: string;
+  roadInformation?: string;
 }
 
 const CreateBooking: React.FC = () => {
@@ -23,9 +25,11 @@ const CreateBooking: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [searchParams] = useSearchParams();
+
   const [formData, setFormData] = useState({
-    projectId: '',
-    inventoryUnitId: '',
+    projectId: searchParams.get('projectId') || '',
+    inventoryUnitId: searchParams.get('unitId') || '',
     customerName: '',
     customerPhone: '',
     customerEmail: '',
@@ -59,14 +63,45 @@ const CreateBooking: React.FC = () => {
       }
       try {
         const res = await api.get(`/inventory/project/${formData.projectId}`);
-        // We only want to show AVAILABLE units
-        setUnits(res.data.data.filter((u: any) => u.status === 'AVAILABLE'));
+        const availableUnits = res.data.data.filter((u: any) => u.status === 'AVAILABLE');
+        setUnits(availableUnits);
+        
+        // Deselect if currently selected unit is no longer available
+        setFormData(prev => {
+          if (prev.inventoryUnitId && !availableUnits.find((u: any) => u.id === prev.inventoryUnitId)) {
+            return { ...prev, inventoryUnitId: '', expectedAmount: 0 };
+          }
+          return prev;
+        });
       } catch (err) {
         console.error('Failed to load inventory units');
       }
     };
+    
     fetchUnits();
+
+    const intervalId = setInterval(() => {
+      fetchUnits();
+    }, 10000);
+
+    return () => clearInterval(intervalId);
   }, [formData.projectId]);
+
+  // Make fetchUnits available for manual refresh on failure
+  const refreshInventory = async () => {
+    if (!formData.projectId) return;
+    try {
+      const res = await api.get(`/inventory/project/${formData.projectId}`);
+      const availableUnits = res.data.data.filter((u: any) => u.status === 'AVAILABLE');
+      setUnits(availableUnits);
+      setFormData(prev => {
+        if (prev.inventoryUnitId && !availableUnits.find((u: any) => u.id === prev.inventoryUnitId)) {
+          return { ...prev, inventoryUnitId: '', expectedAmount: 0 };
+        }
+        return prev;
+      });
+    } catch (err) {}
+  };
 
   const handleUnitChange = (unitId: string) => {
     const selectedUnit = units.find(u => u.id === unitId);
@@ -92,6 +127,7 @@ const CreateBooking: React.FC = () => {
       navigate('/bookings');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create booking. The unit might no longer be available.');
+      await refreshInventory(); // Refresh immediately on failure
     } finally {
       setLoading(false);
     }
@@ -110,11 +146,14 @@ const CreateBooking: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-8">
+      <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 p-8 space-y-10">
         
         {/* Project & Unit Selection */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold text-primary-navy border-b border-gray-100 pb-2">Property Details</h3>
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-action-blue flex items-center justify-center font-bold text-sm">1</div>
+            <h3 className="text-xl font-bold text-deep-navy">Property Details</h3>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700">Project *</label>
@@ -149,8 +188,11 @@ const CreateBooking: React.FC = () => {
         </div>
 
         {/* Customer Details */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold text-primary-navy border-b border-gray-100 pb-2">Customer Details</h3>
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-action-blue flex items-center justify-center font-bold text-sm">2</div>
+            <h3 className="text-xl font-bold text-deep-navy">Customer Details</h3>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700">Customer Name *</label>
@@ -192,8 +234,11 @@ const CreateBooking: React.FC = () => {
         </div>
 
         {/* Financial Details */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold text-primary-navy border-b border-gray-100 pb-2">Financial Details</h3>
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-action-blue flex items-center justify-center font-bold text-sm">3</div>
+            <h3 className="text-xl font-bold text-deep-navy">Financial Details</h3>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700">Expected Amount (₹)</label>
@@ -225,6 +270,7 @@ const CreateBooking: React.FC = () => {
                 <option value="Cheque">Cheque</option>
                 <option value="Cash">Cash</option>
                 <option value="UPI">UPI</option>
+                <option value="Card">Card</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -249,20 +295,20 @@ const CreateBooking: React.FC = () => {
           ></textarea>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+        <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
           <button
             type="button"
             onClick={() => navigate('/bookings')}
-            className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-50 rounded-lg transition-colors"
+            className="px-8 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading || !formData.inventoryUnitId}
-            className="px-6 py-2.5 bg-action-blue text-white font-medium rounded-lg hover:bg-action-blue/90 disabled:opacity-50 transition-colors"
+            className="px-8 py-3 bg-action-blue text-white font-bold rounded-xl hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 transition-all"
           >
-            {loading ? 'Submitting...' : 'Submit Booking'}
+            {loading ? 'Submitting...' : 'Create Booking'}
           </button>
         </div>
       </form>

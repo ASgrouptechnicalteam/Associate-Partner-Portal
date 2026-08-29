@@ -3,11 +3,14 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { ArrowLeft, Edit, ShieldAlert, KeyRound, CheckCircle, XCircle } from 'lucide-react';
 import ResetPasswordModal from './components/ResetPasswordModal';
+import DeactivateUserModal from './components/DeactivateUserModal';
+import DeleteUserModal from './components/DeleteUserModal';
 import { useAuth } from '../../context/AuthContext';
+import { Avatar } from '../../components/ui/Avatar';
 
 interface UserDetails {
   id: string;
-  associateId: string;
+  userId: string;
   name: string;
   email: string;
   phone: string | null;
@@ -35,8 +38,11 @@ interface UserDetails {
   department: string | null;
   workLocation: string | null;
   dateOfJoining: string | null;
+  profileImageUrl?: string | null;
   commissionPercentage: number | null;
   rejectionReason: string | null;
+  designation?: string;
+  userIdentifier?: string;
 }
 
 const UserDetails: React.FC = () => {
@@ -48,6 +54,11 @@ const UserDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  
+  // Modal states
+  const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
 
   const fetchUser = async () => {
     try {
@@ -70,15 +81,33 @@ const UserDetails: React.FC = () => {
   const handleToggleStatus = async () => {
     if (!user) return;
     const newStatus = user.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
-    if (!window.confirm(`Are you sure you want to change status to ${newStatus}?`)) return;
-
     try {
+      setModalLoading(true);
       const response = await api.patch(`/users/${user.id}/status`, { status: newStatus });
       if (response.data.success) {
+        setIsDeactivateModalOpen(false);
         fetchUser();
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update status');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!user) return;
+    try {
+      setModalLoading(true);
+      const res = await api.delete(`/users/${user.id}`);
+      if (res.data.success) {
+        alert(res.data.message);
+        navigate('/users');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete user');
+    } finally {
+      setModalLoading(false);
     }
   };
 
@@ -140,9 +169,10 @@ const UserDetails: React.FC = () => {
           <button onClick={() => navigate('/users')} className="rounded-full p-2 transition-colors hover:bg-gray-100">
             <ArrowLeft size={24} className="text-gray-600" />
           </button>
+          <Avatar name={user.name} imageUrl={user.profileImageUrl} size="lg" />
           <div>
             <h1 className="text-2xl font-bold text-primary-navy">{user.name}</h1>
-            <p className="text-sm font-medium text-primary-gold">{user.associateId || 'No ID'}</p>
+            <p className="text-sm font-medium text-primary-gold">{user.userIdentifier || 'No ID'}</p>
           </div>
         </div>
 
@@ -168,7 +198,7 @@ const UserDetails: React.FC = () => {
 
           {user.status !== 'PENDING_APPROVAL' && (
             <button
-              onClick={handleToggleStatus}
+              onClick={() => setIsDeactivateModalOpen(true)}
               className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
                 user.status === 'ACTIVE' 
                   ? 'border-red-200 text-red-700 hover:bg-red-50' 
@@ -177,6 +207,18 @@ const UserDetails: React.FC = () => {
             >
               <ShieldAlert size={16} />
               {user.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+            </button>
+          )}
+
+          {/* Delete User Button - Visible to MD/CPM targeting non-MD/CPM */}
+          {(currentUser?.role === 'MD' || currentUser?.role === 'CHANNEL_PARTNER_MANAGER') &&
+           user.role !== 'MD' && user.role !== 'CHANNEL_PARTNER_MANAGER' && (
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="flex items-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+            >
+              <ShieldAlert size={16} />
+              Delete User
             </button>
           )}
 
@@ -211,9 +253,20 @@ const UserDetails: React.FC = () => {
           <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">Account Details</h3>
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-gray-500">Role</p>
-              <p className="font-medium text-gray-900">{user.role}</p>
+              <p className="text-sm text-gray-500">Designation</p>
+              <p className="font-bold text-action-blue">{user.designation || '-'}</p>
+              {user.commissionPercentage !== null && (
+                 <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full font-bold inline-block mt-1">
+                   {user.commissionPercentage}% Commission
+                 </span>
+              )}
             </div>
+            {(currentUser?.role === 'MD' || currentUser?.role === 'CHANNEL_PARTNER_MANAGER') && (
+              <div>
+                <p className="text-sm text-gray-500">System Role (Auth)</p>
+                <p className="font-medium text-gray-900">{user.role}</p>
+              </div>
+            )}
             <div>
               <p className="text-sm text-gray-500">Status</p>
               <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold leading-5 ${getStatusColor(user.status)}`}>
@@ -221,20 +274,51 @@ const UserDetails: React.FC = () => {
               </span>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Created Date</p>
-              <p className="text-sm text-gray-900">{new Date(user.createdAt).toLocaleDateString()}</p>
+              <p className="text-sm text-gray-500">Date of Joining</p>
+              <p className="text-sm font-bold text-gray-900">{user.dateOfJoining ? new Date(user.dateOfJoining).toLocaleDateString() : '-'}</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Organization Hierarchy Card */}
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">Organization Hierarchy</h3>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-500">Main Team</p>
+              <p className="font-bold text-gray-900">{(user as any).team?.name || 'Not assigned to a team'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Last Login</p>
-              <p className="text-sm text-gray-900">{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never logged in'}</p>
+              <p className="text-sm text-gray-500 mb-1">Immediate Superior</p>
+              {(user as any).parent?.name ? (
+                <div className="flex items-center gap-3">
+                  <Avatar name={(user as any).parent.name} imageUrl={(user as any).parent.profileImageUrl} size="sm" />
+                  <div>
+                    <p className="font-bold text-gray-900">{(user as any).parent.name}</p>
+                    <p className="text-xs text-gray-500">{(user as any).parent.userIdentifier}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="font-bold text-gray-900">None</p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                <p className="text-xs text-gray-500 mb-1">Direct Members</p>
+                <p className="font-black text-xl text-deep-navy">{(user as any).directMembersCount || 0}</p>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                <p className="text-xs text-blue-600 mb-1">Total Below</p>
+                <p className="font-black text-xl text-action-blue">{(user as any).totalDescendantsCount || 0}</p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* 1. Personal Information */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm lg:col-span-2">
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm lg:col-span-3">
           <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">1. Personal Information</h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
             <div>
               <p className="text-sm text-gray-500">Email Address</p>
               <p className="font-medium text-gray-900">{user.email}</p>
@@ -259,7 +343,7 @@ const UserDetails: React.FC = () => {
               <p className="text-sm text-gray-500">Current Address</p>
               <p className="font-medium text-gray-900">{user.currentAddress || '-'}</p>
             </div>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 md:col-span-4">
               <p className="text-sm text-gray-500">Permanent Address</p>
               <p className="font-medium text-gray-900">{user.permanentAddress || '-'}</p>
             </div>
@@ -269,7 +353,7 @@ const UserDetails: React.FC = () => {
         {/* 2. Identification Details */}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">2. Identification Details</h3>
-          {currentUser?.role === 'MD' || currentUser?.role === 'ASSOCIATE_MANAGER' || currentUser?.id === user.id ? (
+          {currentUser?.role === 'MD' || currentUser?.role === 'CHANNEL_PARTNER_MANAGER' || currentUser?.id === user.id ? (
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-500">PAN Number</p>
@@ -288,7 +372,7 @@ const UserDetails: React.FC = () => {
         {/* 3. Banking Details */}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">3. Banking Details</h3>
-          {currentUser?.role === 'MD' || currentUser?.role === 'ASSOCIATE_MANAGER' || currentUser?.id === user.id ? (
+          {currentUser?.role === 'MD' || currentUser?.role === 'CHANNEL_PARTNER_MANAGER' || currentUser?.id === user.id ? (
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-500">Bank Name</p>
@@ -315,7 +399,7 @@ const UserDetails: React.FC = () => {
         {/* 4. Emergency Contact Information */}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">4. Emergency Contact</h3>
-          {currentUser?.role === 'MD' || currentUser?.role === 'ASSOCIATE_MANAGER' || currentUser?.id === user.id ? (
+          {currentUser?.role === 'MD' || currentUser?.role === 'CHANNEL_PARTNER_MANAGER' || currentUser?.id === user.id ? (
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-500">Contact Name</p>
@@ -336,11 +420,11 @@ const UserDetails: React.FC = () => {
         </div>
 
         {/* 5. Official Details */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm md:col-span-2 lg:col-span-3">
-          <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">5. Official Associate Details</h3>
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm lg:col-span-3">
+          <h3 className="mb-4 border-b pb-2 font-semibold text-gray-900">5. Other Official Details</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
             <div>
-              <p className="text-sm text-gray-500">Job Title</p>
+              <p className="text-sm text-gray-500">Job Title (Internal)</p>
               <p className="font-medium text-gray-900">{user.jobTitle || '-'}</p>
             </div>
             <div>
@@ -352,12 +436,8 @@ const UserDetails: React.FC = () => {
               <p className="font-medium text-gray-900">{user.workLocation || '-'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Date of Joining</p>
-              <p className="font-medium text-gray-900">{user.dateOfJoining ? new Date(user.dateOfJoining).toLocaleDateString() : '-'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Commission %</p>
-              <p className="font-medium text-gray-900">{user.commissionPercentage !== null ? `${user.commissionPercentage}%` : '-'}</p>
+              <p className="text-sm text-gray-500">Account Created</p>
+              <p className="font-medium text-gray-900">{new Date(user.createdAt).toLocaleDateString()}</p>
             </div>
           </div>
         </div>
@@ -369,6 +449,35 @@ const UserDetails: React.FC = () => {
         onClose={() => setIsResetModalOpen(false)}
         userId={user.id}
         userName={user.name}
+      />
+
+      <DeactivateUserModal
+        isOpen={isDeactivateModalOpen}
+        onClose={() => setIsDeactivateModalOpen(false)}
+        onConfirm={handleToggleStatus}
+        user={user ? {
+          name: user.name,
+          userIdentifier: user.userIdentifier || '',
+          designation: user.designation,
+          teamName: (user as any).team?.name,
+          status: user.status
+        } : null}
+        loading={modalLoading}
+      />
+
+      <DeleteUserModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDelete}
+        user={user ? {
+          name: user.name,
+          userIdentifier: user.userIdentifier || '',
+          designation: user.designation,
+          teamName: (user as any).team?.name,
+          directMembersCount: (user as any).directMembersCount,
+          totalDescendantsCount: (user as any).totalDescendantsCount
+        } : null}
+        loading={modalLoading}
       />
     </div>
   );

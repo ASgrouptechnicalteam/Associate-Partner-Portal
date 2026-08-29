@@ -5,11 +5,11 @@ import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
-export const loginUser = async (associateId: string, password: string) => {
+export const loginUser = async (userId: string, password: string) => {
   const user = await prisma.user.findUnique({
-    where: { associateId },
+    where: { userIdentifier: userId },
     include: { role: true },
-  });
+  }) as any;
 
   if (!user) {
     return { success: false, message: 'Invalid credentials', status: 401 };
@@ -30,7 +30,7 @@ export const loginUser = async (associateId: string, password: string) => {
 
   // Session ID generation for MD and MGR
   let sessionId = undefined;
-  if (user.role.name === 'MD' || user.role.name === 'ASSOCIATE_MANAGER') {
+  if (user.role.name === 'MD' || user.role.name === 'CHANNEL_PARTNER_MANAGER') {
     sessionId = crypto.randomBytes(16).toString('hex');
   }
 
@@ -53,7 +53,7 @@ export const loginUser = async (associateId: string, password: string) => {
   // Safe user response
   const safeUser = {
     id: user.id,
-    associateId: user.associateId,
+    userId: user.userIdentifier,
     name: user.name,
     email: user.email,
     phone: user.phone,
@@ -91,7 +91,7 @@ export const getUserById = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { role: true },
-  });
+  }) as any;
 
   if (!user) {
     return { success: false, message: 'User not found', status: 404 };
@@ -102,7 +102,7 @@ export const getUserById = async (userId: string) => {
     status: 200,
     user: {
       id: user.id,
-      associateId: user.associateId,
+      userId: user.userIdentifier,
       name: user.name,
       email: user.email,
       phone: user.phone,

@@ -105,7 +105,7 @@ export default function Profile() {
     if (isInstallable) {
       await installApp();
     } else {
-      setError("Installation is currently unavailable in this browser environment. You may need to use a supported browser like Chrome or Edge.");
+      setError("Install prompt is not currently available. You may also install the app directly via your browser menu (e.g., Chrome: Menu -> Install App).");
     }
   };
 
@@ -157,7 +157,7 @@ export default function Profile() {
           
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{user.name}</h1>
-            <p className="text-gray-500 font-medium mt-1">{user.role.replace('_', ' ')} • {user.associateId || 'No Code Assigned'}</p>
+            <p className="text-gray-500 font-medium mt-1">{user.role.replace('_', ' ')} • {user.userIdentifier || 'No Code Assigned'}</p>
           </div>
         </div>
 
@@ -332,11 +332,12 @@ export default function Profile() {
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Field label="Associate Code" name="associateId" value={user.associateId || 'N/A'} isEditing={false} onChange={handleInputChange} />
+                <Field label="Associate Code" name="userIdentifier" value={user.userIdentifier || 'N/A'} isEditing={false} onChange={handleInputChange} />
                 <Field label="Role" name="role" value={user.role.replace('_', ' ')} isEditing={false} onChange={handleInputChange} />
                 <Field label="Job Title" name="jobTitle" value={user.jobTitle || 'N/A'} isEditing={false} onChange={handleInputChange} />
                 <Field label="Department" name="department" value={user.department || 'N/A'} isEditing={false} onChange={handleInputChange} />
                 <Field label="Work Location" name="workLocation" value={user.workLocation || 'N/A'} isEditing={false} onChange={handleInputChange} />
+                <Field label="Date of Joining" name="dateOfJoining" value={user.dateOfJoining ? new Date(user.dateOfJoining).toLocaleDateString() : 'N/A'} isEditing={false} onChange={handleInputChange} />
                 <Field label="Commission Percentage" name="commissionPercentage" value={user.commissionPercentage ? `${user.commissionPercentage}%` : 'N/A'} isEditing={false} onChange={handleInputChange} />
               </div>
             </div>

@@ -5,7 +5,7 @@ import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import api from '../../services/api';
 
 const Login: React.FC = () => {
-  const [associateId, setAssociateId] = useState('');
+  const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +19,7 @@ const Login: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await api.post('/auth/login', { associateId, password });
+      const response = await api.post('/auth/login', { userId: userId.trim(), password });
       if (response.data.success) {
         login(response.data.user);
         navigate('/dashboard');
@@ -42,7 +42,7 @@ const Login: React.FC = () => {
                <img src="/logo.svg" alt="Sonthillu Constructions" className="w-full h-auto object-contain" />
             </div>
             <h1 className="text-4xl font-bold leading-tight">
-              Welcome to the<br />Associate Partner Portal
+              Welcome to the<br />Marketing & Sales Portal
             </h1>
             <p className="mt-4 text-white/90 text-lg">
               Manage your real estate business, track commissions, and access exclusive inventory.
@@ -75,16 +75,16 @@ const Login: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700" htmlFor="associateId">
-                Associate ID
+              <label className="mb-2 block text-sm font-semibold text-gray-700" htmlFor="userId">
+                User ID
               </label>
               <input
-                id="associateId"
+                id="userId"
                 type="text"
-                value={associateId}
-                onChange={(e) => setAssociateId(e.target.value.toUpperCase())}
+                value={userId}
+                onChange={(e) => setUserId(e.target.value.toUpperCase())}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 transition-all focus:border-brand-gold focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-gold/10"
-                placeholder="ASSOC-XX-XXXX"
+                placeholder="Enter User ID (e.g. RS-0001)"
                 required
                 disabled={isSubmitting}
               />

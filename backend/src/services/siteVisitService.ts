@@ -24,21 +24,22 @@ export class SiteVisitService {
 
     if (role === 'MD') {
       // MD sees all
-    } else if (role === 'ASSOCIATE_MANAGER') {
+    } else if (role === 'CHANNEL_PARTNER_MANAGER') {
       const downlineIds = await TeamService.getFullDownline(userId);
-      whereClause.associateId = { in: [userId, ...downlineIds] };
+      whereClause.userId = { in: [userId, ...downlineIds] };
     } else {
-      whereClause.associateId = userId;
+      whereClause.userId = userId;
     }
 
     if (filters.status) whereClause.status = filters.status;
     if (filters.projectId) whereClause.projectId = filters.projectId;
+    if (filters.isDemo !== undefined) whereClause.isDemo = filters.isDemo;
 
     return await prisma.siteVisit.findMany({
       where: whereClause,
       include: {
         project: { select: { name: true, code: true } },
-        associate: { select: { name: true, associateId: true } }
+        user: { select: { name: true, userIdentifier: true, profileImageUrl: true } }
       },
       orderBy: { visitDate: 'desc' }
     });
@@ -52,16 +53,16 @@ export class SiteVisitService {
       where: { id },
       include: {
         project: { select: { name: true, code: true } },
-        associate: { select: { name: true, associateId: true } }
+        user: { select: { name: true, userIdentifier: true, profileImageUrl: true } }
       }
     });
 
     if (!visit) throw new Error('Site visit not found');
 
-    if (role !== 'MD' && visit.associateId !== userId) {
-      if (role === 'ASSOCIATE_MANAGER') {
+    if (role !== 'MD' && visit.userId !== userId) {
+      if (role === 'CHANNEL_PARTNER_MANAGER') {
         const downlineIds = await TeamService.getFullDownline(userId);
-        if (!downlineIds.includes(visit.associateId)) {
+        if (!downlineIds.includes(visit.userId)) {
           throw new Error('Forbidden: Outside permitted hierarchy');
         }
       } else {
@@ -87,7 +88,7 @@ export class SiteVisitService {
     const visit = await prisma.siteVisit.create({
       data: {
         ...data,
-        associateId: userId,
+        userId: userId,
         status: 'SCHEDULED'
       }
     });
@@ -100,6 +101,33 @@ export class SiteVisitService {
       null,
       visit
     );
+
+    // Notify management (fire and forget)
+    try {
+      const [managers, creator] = await Promise.all([
+        prisma.user.findMany({
+          where: { role: { name: { in: ['MD', 'CHANNEL_PARTNER_MANAGER'] } }, status: 'ACTIVE' },
+          select: { id: true }
+        }),
+        prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
+      ]);
+      const scheduledDate = data.visitDate ? new Date(data.visitDate).toLocaleDateString() : 'TBD';
+      const notifications = managers.filter(m => m.id !== userId).map(m => ({
+        userId: m.id,
+        category: 'Site Visit',
+        title: 'Site Visit Scheduled',
+        message: `${creator?.name || 'An associate'} scheduled a site visit for ${project.name} on ${scheduledDate}.`,
+        entityType: 'SiteVisit',
+        entityId: visit.id,
+        actionUrl: `/site-visits`,
+        eventKey: `SITE_VISIT_CREATED_${visit.id}_${m.id}`
+      }));
+      NotificationService.createNotifications(notifications).catch(err =>
+        console.error('Failed to send site visit creation notifications:', err)
+      );
+    } catch (e) {
+      console.error('Non-critical: site visit creation notification error:', e);
+    }
 
     return visit;
   }
@@ -143,9 +171,9 @@ export class SiteVisitService {
       { status: newStatus, outcome: updateData.outcome }
     );
 
-    if (userId !== visit.associateId) {
+    if (userId !== visit.userId) {
       await NotificationService.createNotification({
-        userId: visit.associateId,
+        userId: visit.userId,
         category: 'Site Visit',
         title: `Site Visit ${newStatus}`,
         message: `Your site visit for ${visit.project.name} has been updated to ${newStatus}.`,

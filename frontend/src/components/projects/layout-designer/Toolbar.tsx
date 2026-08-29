@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer2, Move, Type, AlignLeft, AlignCenter, AlignRight, AlignVerticalSpaceAround, BringToFront, SendToBack, Square, Navigation, MapPin, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
+import { MousePointer2, Move, Type, AlignLeft, AlignCenter, AlignRight, AlignVerticalSpaceAround, BringToFront, SendToBack, Navigation, MapPin, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
 
 interface ToolbarProps {
   layout: any;
@@ -47,10 +47,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       <div className="p-3 font-bold text-sm border-b border-t mt-2">Add Elements</div>
       <div className="p-2 grid grid-cols-2 gap-2">
-        <button onClick={() => addElement('PLOT')} className="flex flex-col items-center justify-center p-2 bg-white border rounded shadow-sm hover:border-brand-gold hover:text-brand-gold text-xs font-semibold text-gray-600 h-16">
-          <Square size={20} className="mb-1" />
-          Plot
-        </button>
         <button onClick={() => addElement('ROAD')} className="flex flex-col items-center justify-center p-2 bg-white border rounded shadow-sm hover:border-brand-gold hover:text-brand-gold text-xs font-semibold text-gray-600 h-16">
           <Navigation size={20} className="mb-1" />
           Road

@@ -63,6 +63,60 @@ export const rejectProject = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
+export const toggleHotStatus = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { isHot } = req.body;
+    
+    // Only MD and Channel Partner Manager can toggle hot status
+    const role = req.user!.role;
+    if (role !== 'MD' && role !== 'CHANNEL_PARTNER_MANAGER') {
+      return res.status(403).json({ success: false, message: 'Forbidden: Only management can toggle hot status' });
+    }
+
+    const project = await ProjectService.toggleHotStatus(id, Boolean(isHot));
+    return res.status(200).json({ success: true, data: project });
+  } catch (error: any) {
+    console.error('Error toggling hot status:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const toggleFeaturedStatus = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { isFeatured } = req.body;
+    
+    const role = req.user!.role;
+    if (role !== 'MD' && role !== 'CHANNEL_PARTNER_MANAGER') {
+      return res.status(403).json({ success: false, message: 'Forbidden: Only management can toggle featured status' });
+    }
+
+    const project = await ProjectService.toggleFeaturedStatus(id, Boolean(isFeatured));
+    return res.status(200).json({ success: true, data: project });
+  } catch (error: any) {
+    console.error('Error toggling featured status:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const deleteProject = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    
+    const role = req.user!.role;
+    if (role !== 'MD' && role !== 'CHANNEL_PARTNER_MANAGER') {
+      return res.status(403).json({ success: false, message: 'Forbidden: Only management can delete projects' });
+    }
+
+    await ProjectService.safeDeleteProject(id);
+    return res.status(200).json({ success: true, message: 'Project deleted successfully' });
+  } catch (error: any) {
+    console.error('Error deleting project:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 export const archiveProject = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params as { id: string };
@@ -76,7 +130,7 @@ export const archiveProject = async (req: AuthenticatedRequest, res: Response) =
 
 export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const isManager = req.user!.role === 'MD' || req.user!.role === 'ASSOCIATE_MANAGER';
+    const isManager = req.user!.role === 'MD' || req.user!.role === 'CHANNEL_PARTNER_MANAGER';
     
     let projects;
     if (isManager) {
@@ -95,7 +149,7 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
 export const getProjectById = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params as { id: string };
-    const isManager = req.user!.role === 'MD' || req.user!.role === 'ASSOCIATE_MANAGER';
+    const isManager = req.user!.role === 'MD' || req.user!.role === 'CHANNEL_PARTNER_MANAGER';
     
     const project = await ProjectService.getProjectById(id, isManager);
     if (!project) {

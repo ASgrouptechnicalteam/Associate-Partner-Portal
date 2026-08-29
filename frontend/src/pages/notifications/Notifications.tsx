@@ -16,7 +16,7 @@ const Notifications: React.FC = () => {
   const fetchNotifications = async () => {
     setIsLoading(true);
     try {
-      let url = `/notifications?page=${page}&limit=10`;
+      let url = `/v1/notifications?page=${page}&limit=10`;
       if (filterRead === 'unread') url += '&isRead=false';
       if (filterRead === 'read') url += '&isRead=true';
       
@@ -36,7 +36,7 @@ const Notifications: React.FC = () => {
   const handleMarkAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
-      await api.patch(`/notifications/${id}/read`);
+      await api.patch(`/v1/notifications/${id}/read`);
       if (data) {
         setData({
           ...data,
@@ -50,7 +50,7 @@ const Notifications: React.FC = () => {
 
   const handleMarkAllAsRead = async () => {
     try {
-      await api.patch('/notifications/read-all');
+      await api.patch('/v1/notifications/read-all');
       if (data) {
         setData({
           ...data,

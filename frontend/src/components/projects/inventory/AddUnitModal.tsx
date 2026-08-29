@@ -18,7 +18,21 @@ export const AddUnitModal: React.FC<AddUnitModalProps> = ({ projectId, isOpen, o
     propertyType: 'PLOT',
     size: '',
     price: '',
-    status: 'AVAILABLE'
+    status: 'AVAILABLE',
+    area: '',
+    facing: '',
+    northBoundary: '',
+    southBoundary: '',
+    eastBoundary: '',
+    westBoundary: '',
+    northLength: '',
+    southLength: '',
+    eastLength: '',
+    westLength: '',
+    shape: '',
+    roadInformation: '',
+    towerBlock: '',
+    floor: ''
   });
 
   if (!isOpen) return null;
@@ -34,7 +48,21 @@ export const AddUnitModal: React.FC<AddUnitModalProps> = ({ projectId, isOpen, o
         propertyType: formData.propertyType,
         size: formData.size,
         price: Number(formData.price) || 0,
-        status: formData.status
+        status: formData.status,
+        area: formData.area ? Number(formData.area) : undefined,
+        facing: formData.facing || undefined,
+        northBoundary: formData.northBoundary || undefined,
+        southBoundary: formData.southBoundary || undefined,
+        eastBoundary: formData.eastBoundary || undefined,
+        westBoundary: formData.westBoundary || undefined,
+        northLength: formData.northLength ? Number(formData.northLength) : undefined,
+        southLength: formData.southLength ? Number(formData.southLength) : undefined,
+        eastLength: formData.eastLength ? Number(formData.eastLength) : undefined,
+        westLength: formData.westLength ? Number(formData.westLength) : undefined,
+        shape: formData.shape || undefined,
+        roadInformation: formData.roadInformation || undefined,
+        towerBlock: formData.towerBlock || undefined,
+        floor: formData.floor || undefined
       });
       onSuccess();
       onClose();
@@ -99,6 +127,66 @@ export const AddUnitModal: React.FC<AddUnitModalProps> = ({ projectId, isOpen, o
               onChange={(e) => setFormData({...formData, size: e.target.value})}
             />
           </div>
+
+          {formData.propertyType === 'PLOT' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Area (sq.yd) *</label>
+                <input type="number" required className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  value={formData.area} onChange={(e) => setFormData({...formData, area: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Facing</label>
+                <input type="text" className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  value={formData.facing} onChange={(e) => setFormData({...formData, facing: e.target.value})} />
+              </div>
+              <div className="col-span-2 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Shape</label>
+                  <input type="text" placeholder="e.g. Regular, Irregular" className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    value={formData.shape} onChange={(e) => setFormData({...formData, shape: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Road Information</label>
+                  <input type="text" placeholder="e.g. East side - 30 ft" className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    value={formData.roadInformation} onChange={(e) => setFormData({...formData, roadInformation: e.target.value})} />
+                </div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Boundaries (N, S, E, W)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="text" placeholder="North Boundary" className="px-3 py-2 border rounded-lg" value={formData.northBoundary} onChange={e => setFormData({...formData, northBoundary: e.target.value})} />
+                  <input type="text" placeholder="South Boundary" className="px-3 py-2 border rounded-lg" value={formData.southBoundary} onChange={e => setFormData({...formData, southBoundary: e.target.value})} />
+                  <input type="text" placeholder="East Boundary" className="px-3 py-2 border rounded-lg" value={formData.eastBoundary} onChange={e => setFormData({...formData, eastBoundary: e.target.value})} />
+                  <input type="text" placeholder="West Boundary" className="px-3 py-2 border rounded-lg" value={formData.westBoundary} onChange={e => setFormData({...formData, westBoundary: e.target.value})} />
+                </div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Side Lengths (N, S, E, W in ft/m)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" placeholder="North Length" className="px-3 py-2 border rounded-lg" value={formData.northLength} onChange={e => setFormData({...formData, northLength: e.target.value})} />
+                  <input type="number" placeholder="South Length" className="px-3 py-2 border rounded-lg" value={formData.southLength} onChange={e => setFormData({...formData, southLength: e.target.value})} />
+                  <input type="number" placeholder="East Length" className="px-3 py-2 border rounded-lg" value={formData.eastLength} onChange={e => setFormData({...formData, eastLength: e.target.value})} />
+                  <input type="number" placeholder="West Length" className="px-3 py-2 border rounded-lg" value={formData.westLength} onChange={e => setFormData({...formData, westLength: e.target.value})} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(formData.propertyType === 'APARTMENT' || formData.propertyType === 'UNIT') && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tower/Block *</label>
+                <input type="text" required className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  value={formData.towerBlock} onChange={(e) => setFormData({...formData, towerBlock: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Floor *</label>
+                <input type="text" required className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  value={formData.floor} onChange={(e) => setFormData({...formData, floor: e.target.value})} />
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>

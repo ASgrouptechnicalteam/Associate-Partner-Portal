@@ -6,7 +6,7 @@ import { CarouselService } from '../services/carouselService';
 export const getCarousels = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userRole = req.user?.role;
-    const includeInactive = userRole === 'MD' || userRole === 'ASSOCIATE_MANAGER';
+    const includeInactive = userRole === 'MD' || userRole === 'CHANNEL_PARTNER_MANAGER';
     const items = await CarouselService.getAll(includeInactive);
     return res.status(200).json({ success: true, data: items });
   } catch (error: any) {

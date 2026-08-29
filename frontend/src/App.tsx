@@ -1,50 +1,58 @@
+import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { PwaProvider } from './context/PwaContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
+import { Loader } from './components/ui/Loader';
+
+// Eagerly loaded critical paths
 import Login from './pages/auth/Login';
-import ForcePasswordChange from './pages/auth/ForcePasswordChange';
 import Dashboard from './pages/dashboard/Dashboard';
-import Users from './pages/users/Users';
-import CreateUser from './pages/users/CreateUser';
-import EditUser from './pages/users/EditUser';
-import UserDetails from './pages/users/UserDetails';
 import NotFound from './pages/errors/NotFound';
 import AccessDenied from './pages/errors/AccessDenied';
-import AppLayout from './components/layout/AppLayout';
-import Projects from './pages/projects/Projects';
-import CreateProject from './pages/projects/CreateProject';
-import ProjectDetails from './pages/projects/ProjectDetails';
-import BookingsList from './pages/bookings/BookingsList';
-import Commissions from './pages/commissions/Commissions';
-import Profile from './pages/profile/Profile';
-import BookingDetails from './pages/bookings/BookingDetails';
-import CreateBooking from './pages/bookings/CreateBooking';
-import TeamHierarchy from './pages/team/TeamHierarchy';
-import TravelList from './pages/travel/TravelList';
-import CreateTravel from './pages/travel/CreateTravel';
-import TravelDetails from './pages/travel/TravelDetails';
-import PendingAuthorizations from './pages/authorizations/PendingAuthorizations';
-import SiteVisitList from './pages/site-visits/SiteVisitList';
-import CreateSiteVisit from './pages/site-visits/CreateSiteVisit';
-import SiteVisitDetails from './pages/site-visits/SiteVisitDetails';
-import OffersList from './pages/offers/OffersList';
-import CreateOffer from './pages/offers/CreateOffer';
-import EditOffer from './pages/offers/EditOffer';
-import CarouselManager from './pages/cms/CarouselManager';
-import PopupManager from './pages/cms/PopupManager';
-import ReviewRequests from './pages/reviews/ReviewRequests';
-import ReviewAnalytics from './pages/reviews/ReviewAnalytics';
+import ForcePasswordChange from './pages/auth/ForcePasswordChange';
 import PublicReviewForm from './pages/reviews/PublicReviewForm';
-import Notifications from './pages/notifications/Notifications';
-import FaqPage from './pages/help/Faq';
-import FaqManager from './pages/cms/FaqManager';
+
+// Lazy loaded secondary modules
+const Users = React.lazy(() => import('./pages/users/Users'));
+const CreateUser = React.lazy(() => import('./pages/users/CreateUser'));
+const EditUser = React.lazy(() => import('./pages/users/EditUser'));
+const UserDetails = React.lazy(() => import('./pages/users/UserDetails'));
+const Projects = React.lazy(() => import('./pages/projects/Projects'));
+const CreateProject = React.lazy(() => import('./pages/projects/CreateProject'));
+const ProjectDetails = React.lazy(() => import('./pages/projects/ProjectDetails'));
+const BookingsList = React.lazy(() => import('./pages/bookings/BookingsList'));
+const Commissions = React.lazy(() => import('./pages/commissions/Commissions'));
+const Profile = React.lazy(() => import('./pages/profile/Profile'));
+const BookingDetails = React.lazy(() => import('./pages/bookings/BookingDetails'));
+const CreateBooking = React.lazy(() => import('./pages/bookings/CreateBooking'));
+const TeamHierarchy = React.lazy(() => import('./pages/team/TeamHierarchy'));
+const PendingAuthorizations = React.lazy(() => import('./pages/authorizations/PendingAuthorizations'));
+const SiteVisitList = React.lazy(() => import('./pages/site-visits/SiteVisitList'));
+const CreateSiteVisit = React.lazy(() => import('./pages/site-visits/CreateSiteVisit'));
+const SiteVisitDetails = React.lazy(() => import('./pages/site-visits/SiteVisitDetails'));
+const DemoBookingsList = React.lazy(() => import('./pages/demo-bookings/DemoBookingsList'));
+const CreateDemoBooking = React.lazy(() => import('./pages/demo-bookings/CreateDemoBooking'));
+const DemoBookingDetails = React.lazy(() => import('./pages/demo-bookings/DemoBookingDetails'));
+const OffersList = React.lazy(() => import('./pages/offers/OffersList'));
+const CreateOffer = React.lazy(() => import('./pages/offers/CreateOffer'));
+const EditOffer = React.lazy(() => import('./pages/offers/EditOffer'));
+const CarouselManager = React.lazy(() => import('./pages/cms/CarouselManager'));
+const PopupManager = React.lazy(() => import('./pages/cms/PopupManager'));
+const ReviewRequests = React.lazy(() => import('./pages/reviews/ReviewRequests'));
+const ReviewAnalytics = React.lazy(() => import('./pages/reviews/ReviewAnalytics'));
+const Notifications = React.lazy(() => import('./pages/notifications/Notifications'));
+const FaqPage = React.lazy(() => import('./pages/help/Faq'));
+const FaqManager = React.lazy(() => import('./pages/cms/FaqManager'));
+const InventoryList = React.lazy(() => import('./pages/inventory/InventoryList'));
 
 function App() {
   return (
     <PwaProvider>
       <AuthProvider>
       <BrowserRouter>
+        <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-app-background"><Loader size={32} text="Loading module..." /></div>}>
           <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
@@ -122,6 +130,17 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <Projects />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/inventory"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <InventoryList />
                 </AppLayout>
               </ProtectedRoute>
             }
@@ -215,38 +234,6 @@ function App() {
             }
           />
 
-          {/* Travel Allowance */}
-          <Route
-            path="/travel"
-            element={
-              <ProtectedRoute>
-                <AppLayout>
-                  <TravelList />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/travel/create"
-            element={
-              <ProtectedRoute>
-                <AppLayout>
-                  <CreateTravel />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/travel/:id"
-            element={
-              <ProtectedRoute>
-                <AppLayout>
-                  <TravelDetails />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-
           {/* Pending Authorizations */}
           <Route
             path="/authorizations"
@@ -286,6 +273,39 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <SiteVisitDetails />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/demo-bookings"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <DemoBookingsList />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/demo-bookings/create"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <CreateDemoBooking />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/demo-bookings/:id"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <DemoBookingDetails />
                 </AppLayout>
               </ProtectedRoute>
             }
@@ -404,7 +424,8 @@ function App() {
             }
           />
           <Route path="*" element={<NotFound />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
     </PwaProvider>

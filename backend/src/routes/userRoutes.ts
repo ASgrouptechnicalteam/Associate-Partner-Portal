@@ -13,16 +13,19 @@ router.use(authenticate);
 router.patch('/profile/me', userController.updateMyProfile);
 router.post('/profile/me/photo', upload.single('photo'), userController.uploadProfilePhoto);
 
-// MD, ASSOCIATE_MANAGER, and ASSOCIATE can create users (Associates can refer)
-router.post('/', requireRole('MD', 'ASSOCIATE_MANAGER', 'ASSOCIATE'), userController.createUser);
+// MD, CHANNEL_PARTNER_MANAGER, and ASSOCIATE can create users (Associates can refer)
+router.post('/', requireRole('MD', 'CHANNEL_PARTNER_MANAGER', 'ASSOCIATE'), userController.createUser);
 
-router.get('/', requireRole('MD', 'ASSOCIATE_MANAGER'), userController.getUsers);
-router.get('/:id', requireRole('MD', 'ASSOCIATE_MANAGER'), userController.getUser);
-router.patch('/:id', requireRole('MD', 'ASSOCIATE_MANAGER'), userController.updateUser);
-router.patch('/:id/status', requireRole('MD', 'ASSOCIATE_MANAGER'), userController.updateStatus);
-router.post('/:id/reset-password', requireRole('MD', 'ASSOCIATE_MANAGER'), userController.resetPassword);
+router.get('/', userController.getUsers);
+router.get('/:id', userController.getUser);
+router.patch('/:id', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), userController.updateUser);
+router.patch('/:id/status', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), userController.updateStatus);
+router.post('/:id/reset-password', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), userController.resetPassword);
 
 // ONLY MD can approve users
 router.patch('/:id/approve', requireRole('MD'), userController.approveUser);
+
+// Delete User
+router.delete('/:id', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), userController.deleteUser);
 
 export default router;

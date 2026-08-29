@@ -30,6 +30,12 @@ const profileFields = {
   workLocation: z.string().optional(),
   dateOfJoining: z.string().optional(), // Using string for date parsing
   commissionPercentage: z.number().optional(),
+  designation: z.string().optional(),
+  teamId: z.string().optional(),
+};
+
+const hierarchyFields = {
+  referralUserId: z.string().nullable().optional(),
 };
 
 export const createUserSchema = z.object({
@@ -37,14 +43,17 @@ export const createUserSchema = z.object({
   email: z.string().email('Valid email is required'),
   phone: z.string().optional(),
   ...profileFields,
+  ...hierarchyFields,
 });
 
 export const updateUserSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   email: z.string().email('Valid email is required').optional(),
   phone: z.string().optional(),
-  role: z.enum(['MD', 'ASSOCIATE_MANAGER', 'ASSOCIATE']).optional(),
+  role: z.enum(['MD', 'CHANNEL_PARTNER_MANAGER', 'ASSOCIATE']).optional(),
   ...profileFields,
+  ...hierarchyFields,
+  headedTeamId: z.string().nullable().optional(),
 });
 
 export const updateStatusSchema = z.object({

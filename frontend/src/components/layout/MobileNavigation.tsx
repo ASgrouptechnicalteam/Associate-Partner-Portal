@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { navigationConfig } from '../../config/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, X } from 'lucide-react';
@@ -9,9 +9,37 @@ interface MobileNavigationProps {
   onClose: () => void;
 }
 
+const isNavigationItemActive = (itemPath: string, pathname: string, search: string) => {
+  const [itemBase, itemQuery] = itemPath.split('?');
+  const currentParams = new URLSearchParams(search);
+  const currentFilter = currentParams.get('filter');
+  const itemFilter = new URLSearchParams(itemQuery || '').get('filter');
+
+  const isBaseMatch = pathname === itemBase;
+  const isNestedMatch = pathname.startsWith(itemBase + '/');
+
+  if (!isBaseMatch && !isNestedMatch) {
+    return false;
+  }
+
+  if (itemFilter) {
+    return isBaseMatch && currentFilter === itemFilter;
+  }
+
+  if (!itemFilter) {
+    if (currentFilter === 'hot' || currentFilter === 'featured') {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+};
+
 const MobileNavigation: React.FC<MobileNavigationProps> = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname, search } = useLocation();
 
   // Handle escape key & body scroll
   useEffect(() => {
@@ -59,8 +87,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({ isOpen, onClose }) 
       >
         {/* Header */}
         <div className="flex items-center justify-between h-20 px-6 border-b border-border-subtle bg-white shrink-0">
-          <div className="flex items-center justify-start h-full">
-            <img src="/logo.svg" alt="Sonthillu Constructions" className="h-8 w-auto object-contain" />
+          <div className="flex items-center gap-3 justify-start h-full">
+            <img 
+              src="/logo.svg" 
+              alt="Sonthillu Constructions" 
+              className="h-8 w-8 object-contain shrink-0" 
+            />
+            <h1 className="text-[13px] font-bold leading-tight text-deep-navy">
+              Marketing &<br/>Sales Portal
+            </h1>
           </div>
           <button
             onClick={onClose}
@@ -74,23 +109,25 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({ isOpen, onClose }) 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-6">
           <nav className="space-y-1.5 px-4">
-            {filteredNavigation.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={onClose} // Auto-close on route change
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
+            {filteredNavigation.map((item) => {
+              const isActive = isNavigationItemActive(item.path, pathname, search);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={onClose} // Auto-close on route change
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
                     isActive
                       ? 'bg-action-blue/10 text-action-blue font-semibold'
                       : 'text-muted-text hover:bg-gray-50 hover:text-primary-navy'
-                  }`
-                }
-              >
-                <item.icon size={22} className="shrink-0" />
-                <span className="text-base tracking-wide truncate">{item.label}</span>
-              </NavLink>
-            ))}
+                  }`}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <item.icon size={22} className="shrink-0" />
+                  <span className="text-base tracking-wide truncate">{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
 

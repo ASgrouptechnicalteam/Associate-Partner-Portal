@@ -10,14 +10,14 @@ interface CommissionPolicy {
   value: string;
   status: string;
   createdAt: string;
-  associate: { name: string; associateId: string };
+  associate: { name: string; userId: string };
   project: { name: string } | null;
 }
 
 interface User {
   id: string;
   name: string;
-  associateId: string;
+  userId: string;
 }
 
 interface Project {
@@ -71,7 +71,7 @@ export default function CommissionPolicyManager({ onClose }: Props) {
     setSubmitting(true);
     try {
       await api.post('/v1/commissions/policies', {
-        associateId: selectedAssociate,
+        userId: selectedAssociate,
         projectId: selectedProject || null,
         type,
         value: Number(value)
@@ -114,7 +114,7 @@ export default function CommissionPolicyManager({ onClose }: Props) {
 
         <div className="p-6 flex-1 overflow-y-auto space-y-8">
           {/* Create Form */}
-          {user?.role === 'ASSOCIATE_MANAGER' || user?.role === 'MD' ? (
+          {user?.role === 'CHANNEL_PARTNER_MANAGER' || user?.role === 'MD' ? (
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
               <h3 className="font-bold text-primary-navy mb-4">Create Commission Rule</h3>
               <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
@@ -122,7 +122,7 @@ export default function CommissionPolicyManager({ onClose }: Props) {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Associate *</label>
                   <select required value={selectedAssociate} onChange={e => setSelectedAssociate(e.target.value)} className="w-full border rounded-lg p-2 text-sm">
                     <option value="">Select...</option>
-                    {associates.map(a => <option key={a.id} value={a.id}>{a.name} ({a.associateId})</option>)}
+                    {associates.map(a => <option key={a.id} value={a.id}>{a.name} ({a.userId})</option>)}
                   </select>
                 </div>
                 <div>

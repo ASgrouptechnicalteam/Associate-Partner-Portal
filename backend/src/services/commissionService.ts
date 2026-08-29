@@ -22,47 +22,29 @@ export class CommissionService {
       return existing;
     }
 
-    // 1. Find active policy for the associate
-    // Precedence: Specific Project > Global
-    let policy = await tx.commissionPolicy.findFirst({
-      where: {
-        associateId: booking.associateId,
-        projectId: booking.projectId,
-        status: 'ACTIVE'
-      }
+    // 1. Fetch user to get authoritative commission percentage
+    const user = await tx.user.findUnique({
+      where: { id: booking.userId }
     });
 
-    if (!policy) {
-      policy = await tx.commissionPolicy.findFirst({
-        where: {
-          associateId: booking.associateId,
-          projectId: null,
-          status: 'ACTIVE'
-        }
-      });
-    }
-
-    if (!policy) {
-      // No active policy, no commission generated
+    if (!user || user.commissionPercentage === null || user.commissionPercentage === undefined) {
+      // No active percentage, no commission generated
       return null;
     }
 
-    // 2. Calculate amount
+    // 2. Calculate amount based on percentage
     let amountCalculated = new Decimal(0);
-    if (policy.type === 'PERCENTAGE') {
-      amountCalculated = booking.bookingAmount.mul(policy.value).div(100);
-    } else if (policy.type === 'FIXED') {
-      amountCalculated = policy.value;
-    }
+    const percentage = new Decimal(user.commissionPercentage);
+    amountCalculated = booking.bookingAmount.mul(percentage).div(100);
 
     // 3. Create Transaction
     const transaction = await tx.commissionTransaction.create({
       data: {
         bookingId: booking.id,
-        associateId: booking.associateId,
+        userId: booking.userId,
         projectId: booking.projectId,
-        commissionType: policy.type,
-        commissionValue: policy.value,
+        commissionType: 'PERCENTAGE',
+        commissionValue: percentage,
         baseAmount: booking.bookingAmount,
         amountCalculated: amountCalculated,
         amountReceived: 0,
@@ -79,12 +61,12 @@ export class CommissionService {
         entity: 'CommissionTransaction',
         entityId: transaction.id,
         afterJson: JSON.stringify(transaction),
-        metadata: JSON.stringify({ policyId: policy.id })
+        metadata: JSON.stringify({ source: 'User Designation' })
       }
     });
     // 5. Notification
     await NotificationService.createNotification({
-      userId: transaction.associateId,
+      userId: transaction.userId,
       category: 'Commission',
       title: 'Commission Generated',
       message: `A commission of ${amountCalculated} has been generated for your recent booking.`,

@@ -1,0 +1,48 @@
+{
+  "initialCounts": {
+    "user": 6,
+    "team": 1,
+    "project": 0,
+    "inventoryUnit": 0,
+    "projectLayout": 0,
+    "layoutElement": 0,
+    "booking": 0,
+    "siteVisit": 0,
+    "demoBooking": 0,
+    "notification": 0,
+    "commissionTransaction": 0,
+    "commissionPolicy": 0,
+    "reviewRequest": 0,
+    "offer": 0,
+    "tutorial": 0,
+    "carouselItem": 0,
+    "auditLog": 11
+  },
+  "finalCounts": {
+    "user": 1,
+    "team": 0,
+    "project": 0,
+    "inventoryUnit": 0,
+    "projectLayout": 0,
+    "layoutElement": 0,
+    "booking": 0,
+    "siteVisit": 0,
+    "demoBooking": 0,
+    "notification": 0,
+    "commissionTransaction": 0,
+    "commissionPolicy": 0,
+    "reviewRequest": 0,
+    "offer": 0,
+    "tutorial": 0,
+    "carouselItem": 0,
+    "auditLog": 0
+  },
+  "protectedUsers": [
+    {
+      "id": "2d6cf7c8-ef8b-4977-81f4-5cf24dac168f",
+      "uid": "MD-001",
+      "role": "MD"
+    }
+  ],
+  "testUsersDeleted": 5
+}

@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Search, Calendar, Clock, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Calendar, Clock, Eye } from 'lucide-react';
+import { Avatar } from '../../components/ui/Avatar';
 
 export default function SiteVisitList() {
   const { user } = useAuth();
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchVisits = async () => {
     try {
@@ -29,6 +30,15 @@ export default function SiteVisitList() {
   useEffect(() => {
     fetchVisits();
   }, []);
+
+  const filteredVisits = visits.filter(v => {
+    const s = searchQuery.toLowerCase();
+    return v.customerName.toLowerCase().includes(s) ||
+           (v.customerPhone && v.customerPhone.toLowerCase().includes(s)) ||
+           v.project.name.toLowerCase().includes(s) ||
+           (v.referenceId && v.referenceId.toLowerCase().includes(s)) ||
+           v.id.toLowerCase().includes(s);
+  });
 
   if (loading) {
     return (
@@ -55,6 +65,20 @@ export default function SiteVisitList() {
         </Button>
       </div>
 
+      {/* Search Bar */}
+      <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-action-blue" size={20} />
+          <input 
+            type="text"
+            placeholder="Search by customer, phone, project or reference..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border-none rounded-xl text-sm focus:outline-none focus:ring-0 bg-transparent placeholder:text-gray-400 font-medium text-deep-navy"
+          />
+        </div>
+      </div>
+
       {error && (
         <div className="bg-red-50 p-4 rounded-md">
           <p className="text-sm text-red-700">{error}</p>
@@ -63,7 +87,7 @@ export default function SiteVisitList() {
 
       {/* Mobile view: Stacked cards */}
       <div className="md:hidden space-y-4">
-        {visits.map((visit) => (
+        {filteredVisits.map((visit) => (
           <Card key={visit.id} padding="md">
             <div className="flex justify-between items-start mb-2">
               <div>
@@ -81,8 +105,11 @@ export default function SiteVisitList() {
             <div className="mt-2 text-sm text-gray-500 flex flex-col gap-1">
               <div>Date: {format(new Date(visit.visitDate), 'MMM d, yyyy')}</div>
               <div>Time: {visit.visitTime}</div>
-              {(user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER') && (
-                <div>By: {visit.associate?.name}</div>
+              {(user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER') && visit.associate && (
+                <div className="flex items-center gap-2">
+                  <Avatar name={visit.associate.name} imageUrl={visit.associate.profileImageUrl} size="sm" />
+                  <div className="text-sm">By: {visit.associate.name}</div>
+                </div>
               )}
             </div>
             <div className="mt-4">
@@ -109,7 +136,7 @@ export default function SiteVisitList() {
               <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Customer</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Project</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Date & Time</th>
-              {(user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER') && (
+              {(user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER') && (
                 <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Associate</th>
               )}
               <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Status</th>
@@ -117,8 +144,15 @@ export default function SiteVisitList() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {visits.map((visit) => (
-              <tr key={visit.id} className="hover:bg-gray-50/50 transition-colors">
+            {filteredVisits.length === 0 ? (
+              <tr>
+                <td colSpan={(user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER') ? 6 : 5} className="px-6 py-8 text-center text-gray-500">
+                  No site visits found
+                </td>
+              </tr>
+            ) : (
+              filteredVisits.map((visit) => (
+                <tr key={visit.id} className="hover:bg-gray-50/50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-primary-navy">{visit.customerName}</div>
                   <div className="text-xs text-muted-text mt-0.5">{visit.customerPhone}</div>
@@ -136,10 +170,22 @@ export default function SiteVisitList() {
                     <Clock size={12} className="text-gray-400" />
                     {visit.visitTime}
                   </div>
+                  {visit.isDemo && (
+                    <span className="inline-flex mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-brand-100 text-brand-800">
+                      DEMO
+                    </span>
+                  )}
                 </td>
-                {(user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER') && (
+                {(user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER') && (
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{visit.associate?.name}</div>
+                    {visit.associate ? (
+                      <div className="flex items-center gap-2">
+                        <Avatar name={visit.associate.name} imageUrl={visit.associate.profileImageUrl} size="sm" />
+                        <div className="text-sm font-medium text-gray-900">{visit.associate.name}</div>
+                      </div>
+                    ) : (
+                      <div className="text-sm font-medium text-gray-900">-</div>
+                    )}
                   </td>
                 )}
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -157,7 +203,7 @@ export default function SiteVisitList() {
                   </Link>
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
         {visits.length === 0 && (

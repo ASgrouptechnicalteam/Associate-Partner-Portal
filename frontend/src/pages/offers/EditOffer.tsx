@@ -120,7 +120,7 @@ const EditOffer: React.FC = () => {
               >
                 <option value="ALL">All Associates & Managers</option>
                 <option value="ASSOCIATE">Associates Only</option>
-                <option value="ASSOCIATE_MANAGER">Managers Only</option>
+                <option value="CHANNEL_PARTNER_MANAGER">Managers Only</option>
               </select>
             </div>
 

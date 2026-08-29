@@ -93,4 +93,4 @@ const PromotionalPopup: React.FC<Props> = ({ popup }) => {
   );
 };
 
-export default PromotionalPopup;
+export default React.memo(PromotionalPopup);

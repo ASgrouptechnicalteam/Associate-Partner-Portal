@@ -57,7 +57,7 @@ const PopupManager: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user && user.role !== 'MD' && user.role !== 'ASSOCIATE_MANAGER') {
+    if (user && user.role !== 'MD' && user.role !== 'CHANNEL_PARTNER_MANAGER') {
       navigate('/dashboard');
       return;
     }

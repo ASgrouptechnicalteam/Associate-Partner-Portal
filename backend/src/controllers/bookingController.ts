@@ -14,7 +14,7 @@ const createBookingSchema = z.object({
   preferredLocation: z.string().optional(),
   bookingDate: z.string().datetime(),
   expectedAmount: z.number().positive(),
-  paymentMode: z.string().min(2),
+  paymentMode: z.enum(['Bank Transfer', 'Cheque', 'Cash', 'UPI', 'Card']),
   bookingAmount: z.number().positive(),
   notes: z.string().optional(),
   documents: z.array(z.string()).optional() // Array of validated URLs/paths

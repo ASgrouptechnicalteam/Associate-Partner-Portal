@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Team` ADD CONSTRAINT `Team_headUserId_fkey` FOREIGN KEY (`headUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

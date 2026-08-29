@@ -7,10 +7,11 @@ import { formatCurrency } from '../../utils/currency';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Avatar } from '../../components/ui/Avatar';
 
 interface BookingDetail {
   id: string;
-  associateId: string;
+  userId: string;
   customerName: string;
   customerPhone: string;
   customerEmail: string;
@@ -24,7 +25,11 @@ interface BookingDetail {
   rejectionReason: string | null;
   project: { name: string; code: string };
   inventoryUnit: { unitNumber: string; propertyType: string };
-  associate: { name: string; associateId: string };
+  associate?: {
+    name: string;
+    userId: string;
+    profileImageUrl?: string;
+  };
 }
 
 const BookingDetails: React.FC = () => {
@@ -76,7 +81,7 @@ const BookingDetails: React.FC = () => {
   if (loading) return <div className="p-8 text-center text-gray-500">Loading booking details...</div>;
   if (error || !booking) return <div className="p-8 text-center text-red-500">{error}</div>;
 
-  const isManager = user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER';
+  const isManager = user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER';
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -111,9 +116,12 @@ const BookingDetails: React.FC = () => {
 
             <div>
               <h3 className="text-lg font-bold text-primary-navy mb-4">Associate Details</h3>
-              <div className="space-y-3 text-sm">
-                <p><span className="text-gray-500">Name:</span> {booking.associate.name}</p>
-                <p><span className="text-gray-500">Code:</span> {booking.associate.associateId}</p>
+              <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <Avatar name={booking.associate?.name || 'Unknown'} imageUrl={booking.associate?.profileImageUrl} size="md" />
+                  <div>
+                    <p className="font-bold text-deep-navy">{booking.associate?.name}</p>
+                    <p className="text-xs text-gray-500">{booking.associate?.userId}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -146,7 +154,7 @@ const BookingDetails: React.FC = () => {
         </div>
 
         {/* Manager Actions */}
-        {isManager && booking.status === 'SUBMITTED' && (
+        {isManager && (booking.status === 'SUBMITTED' || booking.status === 'UNDER_REVIEW') && (
           <div className="pt-6 border-t border-border-subtle flex gap-4 justify-end">
             <Button
               onClick={() => setShowRejectModal(true)}
@@ -155,13 +163,26 @@ const BookingDetails: React.FC = () => {
             >
               Reject
             </Button>
-            <Button
-              onClick={() => updateStatus('VERIFIED')}
-              variant="success"
-              leftIcon={<Check size={18} />}
-            >
-              Verify & Confirm
-            </Button>
+            
+            {booking.status === 'SUBMITTED' && (
+              <Button
+                onClick={() => updateStatus('UNDER_REVIEW')}
+                variant="secondary"
+                leftIcon={<Check size={18} />}
+              >
+                Start Review
+              </Button>
+            )}
+
+            {booking.status === 'UNDER_REVIEW' && (
+              <Button
+                onClick={() => updateStatus('VERIFIED')}
+                variant="success"
+                leftIcon={<Check size={18} />}
+              >
+                Verify & Confirm
+              </Button>
+            )}
           </div>
         )}
       </Card>

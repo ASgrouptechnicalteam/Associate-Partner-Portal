@@ -1,0 +1,21 @@
+{
+  "user": 6,
+  "role": 4,
+  "permission": 2,
+  "team": 1,
+  "project": 1,
+  "projectLayout": 1,
+  "layoutElement": 0,
+  "inventoryUnit": 0,
+  "booking": 0,
+  "siteVisit": 0,
+  "demoBooking": 0,
+  "notification": 2,
+  "commissionTransaction": 0,
+  "commissionPolicy": 0,
+  "reviewRequest": 0,
+  "offer": 0,
+  "tutorial": 0,
+  "carouselItem": 0,
+  "auditLog": 11
+}

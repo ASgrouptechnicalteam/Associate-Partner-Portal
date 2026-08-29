@@ -7,9 +7,9 @@ export class ReviewController {
   static async createRequest(req: Request, res: Response) {
     try {
       const { bookingId, interactionSummary } = createReviewRequestSchema.parse(req.body);
-      const associateId = (req as any).user.id;
+      const userId = (req as any).user.id;
 
-      const reviewRequest = await ReviewService.createReviewRequest(associateId, bookingId, interactionSummary);
+      const reviewRequest = await ReviewService.createReviewRequest(userId, bookingId, interactionSummary);
       res.status(201).json({ success: true, data: reviewRequest });
     } catch (error: any) {
       if (error.name === 'ZodError') {

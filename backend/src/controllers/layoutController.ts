@@ -218,8 +218,44 @@ export const saveDraftLayout = async (
           }
         });
 
-        // 3. Create new elements
+        // 3. Verify and Create new elements
         if (elements && elements.length > 0) {
+          
+          const inventoryIds = elements
+            .filter((e: any) => e.type === 'PLOT' || e.type === 'UNIT')
+            .map((e: any) => e.inventoryUnitId)
+            .filter(Boolean);
+
+          let validationError = null;
+
+          if (inventoryIds.length > 0) {
+            const validUnits = await tx.inventoryUnit.findMany({
+              where: { id: { in: inventoryIds }, projectId: projectId }
+            });
+            const validIds = new Set(validUnits.map(u => u.id));
+            
+            elements.forEach((el: any) => {
+              if (el.type === 'PLOT' || el.type === 'UNIT') {
+                if (!el.inventoryUnitId) {
+                  validationError = `Orphan unit detected. Every plot or unit must be linked to a real inventory unit.`;
+                } else if (!validIds.has(el.inventoryUnitId)) {
+                  validationError = `Inventory Unit ${el.inventoryUnitId} not found in this project. Cannot save orphan plot.`;
+                }
+              }
+            });
+          } else {
+            // Even if no mapped inventory units are present, we still need to reject any PLOT/UNIT that lacks an inventoryUnitId
+            elements.forEach((el: any) => {
+              if ((el.type === 'PLOT' || el.type === 'UNIT') && !el.inventoryUnitId) {
+                validationError = `Orphan unit detected. Every plot or unit must be linked to a real inventory unit.`;
+              }
+            });
+          }
+
+          if (validationError) {
+             throw new Error(`VALIDATION_FAILED:${validationError}`);
+          }
+          
           await tx.layoutElement.createMany({
             data: elements.map((el: any) => ({
               layoutId: draft.id,
@@ -253,6 +289,13 @@ export const saveDraftLayout = async (
       data: updatedLayout
     });
   } catch (error: any) {
+    if (error.message && error.message.startsWith('VALIDATION_FAILED:')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message.split('VALIDATION_FAILED:')[1]
+      });
+    }
+
     console.error(
       'Error saving draft:',
       error

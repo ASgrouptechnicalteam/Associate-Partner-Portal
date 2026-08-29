@@ -19,7 +19,8 @@ export default function CreateSiteVisit() {
     customerEmail: '',
     visitDate: '',
     visitTime: '',
-    remarks: ''
+    remarks: '',
+    isDemo: false
   });
 
   useEffect(() => {
@@ -181,6 +182,20 @@ export default function CreateSiteVisit() {
                 onChange={handleChange}
                 className="mt-1 shadow-sm focus:ring-brand-500 focus:border-brand-500 block w-full sm:text-sm border border-gray-300 rounded-md"
               />
+            </div>
+
+            <div className="flex items-center mt-4">
+              <input
+                type="checkbox"
+                id="isDemo"
+                name="isDemo"
+                checked={formData.isDemo}
+                onChange={(e) => setFormData({ ...formData, isDemo: e.target.checked })}
+                className="h-4 w-4 text-brand-600 focus:ring-brand-500 border-gray-300 rounded"
+              />
+              <label htmlFor="isDemo" className="ml-2 block text-sm font-medium text-gray-900">
+                This is a Book Demo request (Product Demonstration)
+              </label>
             </div>
 
             <div className="pt-4 flex justify-end gap-3 border-t border-border-subtle">

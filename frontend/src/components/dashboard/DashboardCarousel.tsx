@@ -107,4 +107,4 @@ const DashboardCarousel: React.FC<Props> = ({ items }) => {
   );
 };
 
-export default DashboardCarousel;
+export default React.memo(DashboardCarousel);

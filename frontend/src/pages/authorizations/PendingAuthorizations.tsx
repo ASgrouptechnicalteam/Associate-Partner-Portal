@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Building2, Calendar, Network, Car, IndianRupee, AlertCircle, Eye, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Building2, Calendar, Network, IndianRupee, AlertCircle, Eye, CheckCircle } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/currency';
@@ -11,7 +11,6 @@ interface PendingSummary {
   projects: { count: number; items: any[] };
   bookings: { count: number; items: any[] };
   teamRequests: { count: number; items: any[] };
-  travelRequests: { count: number; items: any[] };
   commissionPolicies: { count: number; items: any[] };
   total: number;
 }
@@ -79,7 +78,6 @@ const PendingAuthorizations: React.FC = () => {
     { title: 'Projects', count: summary.projects.count, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-100' },
     { title: 'Bookings', count: summary.bookings.count, icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-100' },
     { title: 'Team Requests', count: summary.teamRequests.count, icon: Network, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-    { title: 'Travel Requests', count: summary.travelRequests.count, icon: Car, color: 'text-emerald-600', bg: 'bg-emerald-100' },
     { title: 'Commission Rules', count: summary.commissionPolicies.count, icon: IndianRupee, color: 'text-amber-600', bg: 'bg-amber-100' },
   ];
 
@@ -96,7 +94,7 @@ const PendingAuthorizations: React.FC = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card, idx) => (
           <Card key={idx} padding="md" className="hover:-translate-y-1 transition-transform">
             <div className="flex items-center">
@@ -124,28 +122,6 @@ const PendingAuthorizations: React.FC = () => {
       {summary.total > 0 && (
         <Card padding="none" className="overflow-hidden bg-white shadow-sm">
           <ul className="divide-y divide-border-subtle">
-            {/* Travel Requests */}
-            {summary.travelRequests.items.map((tr: any) => (
-              <li key={tr.id} className="p-4 sm:p-6 hover:bg-gray-50/80 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-shrink-0 bg-emerald-100/50 p-3 rounded-full border border-emerald-200">
-                      <Car className="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-primary-navy">
-                        Travel Request - {tr.requester.name} <span className="text-xs text-muted-text font-normal ml-1">({tr.requester.associateId})</span>
-                      </p>
-                      <p className="text-sm font-medium text-gray-600 mt-0.5">
-                        {tr.fromLocation} to {tr.toLocation} &bull; <span className="font-bold text-primary-text">{formatCurrency(tr.amountRequested)}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => navigate(`/travel/${tr.id}`)} leftIcon={<Eye size={16} />}>Review</Button>
-                </div>
-              </li>
-            ))}
-
             {/* Team Requests */}
             {summary.teamRequests.items.map((tr: any) => (
               <li key={tr.id} className="p-4 sm:p-6 hover:bg-gray-50/80 transition-colors">
@@ -159,7 +135,7 @@ const PendingAuthorizations: React.FC = () => {
                         Team Request - {tr.requester.name}
                       </p>
                       <p className="text-sm font-medium text-gray-600 mt-0.5">
-                        {tr.requestType} <span className="font-bold text-primary-text">{tr.targetAssociate.name}</span> ({tr.targetAssociate.associateId})
+                        {tr.requestType} <span className="font-bold text-primary-text">{tr.targetUser.name}</span> ({tr.targetUser.userId})
                       </p>
                     </div>
                   </div>
@@ -181,7 +157,7 @@ const PendingAuthorizations: React.FC = () => {
                         Booking: {b.project.name} - <span className="text-action-blue">{b.customerName}</span>
                       </p>
                       <p className="text-sm font-medium text-gray-600 mt-0.5">
-                        Assoc: {b.associate.name} ({b.associate.associateId}) &bull; <span className="text-brand-gold">{b.status.replace('_', ' ')}</span>
+                        Assoc: {b.user.name} ({b.user.userIdentifier}) &bull; <span className="text-brand-gold">{b.status.replace('_', ' ')}</span>
                       </p>
                     </div>
                   </div>
@@ -222,7 +198,7 @@ const PendingAuthorizations: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-primary-navy">
-                        Commission Rules - {cp.associate.name} <span className="text-xs text-muted-text font-normal ml-1">({cp.associate.associateId})</span>
+                        Commission Rules - {cp.user.name} <span className="text-xs text-muted-text font-normal ml-1">({cp.user.userIdentifier})</span>
                       </p>
                       <p className="text-sm font-medium text-gray-600 mt-0.5">
                         {cp.project?.name || 'Global'} &bull; <span className="font-bold text-primary-text">{cp.type === 'PERCENTAGE' ? `${cp.value}%` : formatCurrency(cp.value)}</span>

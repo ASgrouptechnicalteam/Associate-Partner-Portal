@@ -39,7 +39,7 @@ const CreateProject: React.FC = () => {
   const [activeSection, setActiveSection] = useState('basic');
 
   // IDOR protection
-  if (user?.role !== 'MD' && user?.role !== 'ASSOCIATE_MANAGER') {
+  if (user?.role !== 'MD' && user?.role !== 'CHANNEL_PARTNER_MANAGER') {
     return <div className="p-8 text-center text-red-500">Access Denied</div>;
   }
 

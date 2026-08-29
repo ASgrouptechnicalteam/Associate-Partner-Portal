@@ -5,7 +5,7 @@ import { PopupService } from '../services/popupService';
 export const getPopups = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userRole = req.user?.role;
-    const includeInactive = userRole === 'MD' || userRole === 'ASSOCIATE_MANAGER';
+    const includeInactive = userRole === 'MD' || userRole === 'CHANNEL_PARTNER_MANAGER';
     const items = await PopupService.getAll(includeInactive);
     return res.status(200).json({ success: true, data: items });
   } catch (error: any) {

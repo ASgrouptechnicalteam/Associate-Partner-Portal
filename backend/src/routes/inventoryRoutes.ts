@@ -20,8 +20,8 @@ router.get('/project/:projectId', getInventoryByProject);
 router.get('/:id', getInventoryUnitById);
 
 // AM and MD routes
-router.post('/', requireRole('MD', 'ASSOCIATE_MANAGER'), validateCreateInventory, createInventoryUnit);
-router.patch('/:id', requireRole('MD', 'ASSOCIATE_MANAGER'), updateInventoryUnit);
-router.patch('/:id/status', requireRole('MD', 'ASSOCIATE_MANAGER'), validateUpdateInventoryStatus, updateInventoryStatus);
+router.post('/', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), validateCreateInventory, createInventoryUnit);
+router.patch('/:id', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), updateInventoryUnit);
+router.patch('/:id/status', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), validateUpdateInventoryStatus, updateInventoryStatus);
 
 export default router;

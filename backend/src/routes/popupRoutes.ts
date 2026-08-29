@@ -16,8 +16,8 @@ router.use(authenticate);
 router.get('/', getPopups);
 router.get('/:id', getPopupById);
 
-router.post('/', requireRole('MD', 'ASSOCIATE_MANAGER'), createPopup);
-router.patch('/:id', requireRole('MD', 'ASSOCIATE_MANAGER'), updatePopup);
-router.delete('/:id', requireRole('MD', 'ASSOCIATE_MANAGER'), deletePopup);
+router.post('/', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), createPopup);
+router.patch('/:id', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), updatePopup);
+router.delete('/:id', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), deletePopup);
 
 export default router;

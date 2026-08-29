@@ -2,8 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import api, { getStaticUrl } from '../../../services/api';
 import { ZoomIn, ZoomOut, Maximize, Search, X } from 'lucide-react';
 import { formatCurrency } from '../../../utils/currency';
-import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Group } from 'react-konva';
+import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Group, Line } from 'react-konva';
+import { useNavigate } from 'react-router-dom';
 import useImage from 'use-image';
+import { getInventoryStatusColor } from '../../../utils/statusColors';
+import { calculatePlotPolygon } from '../../../utils/geometryUtils';
 
 interface LayoutViewerProps {
   projectId: string;
@@ -16,6 +19,7 @@ const BackgroundImage = ({ url, opacity, width, height }: { url: string, opacity
 };
 
 export const LayoutViewer: React.FC<LayoutViewerProps> = ({ projectId, inventoryUnits }) => {
+  const navigate = useNavigate();
   const [layout, setLayout] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
@@ -23,6 +27,9 @@ export const LayoutViewer: React.FC<LayoutViewerProps> = ({ projectId, inventory
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [selectedElement, setSelectedElement] = useState<any>(null);
+  
+  // Polling state
+  const [liveInventoryData, setLiveInventoryData] = useState<any[]>(inventoryUnits);
   
   // Filter/Search State
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -32,7 +39,22 @@ export const LayoutViewer: React.FC<LayoutViewerProps> = ({ projectId, inventory
 
   useEffect(() => {
     fetchPublishedLayout();
-  }, [projectId]);
+    setLiveInventoryData(inventoryUnits);
+    
+    // Poll inventory every 10 seconds
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await api.get(`/projects/${projectId}/inventory`);
+        if (res.data.success) {
+          setLiveInventoryData(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to poll layout inventory', err);
+      }
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [projectId, inventoryUnits]);
 
   const fetchPublishedLayout = async () => {
     try {
@@ -125,7 +147,7 @@ export const LayoutViewer: React.FC<LayoutViewerProps> = ({ projectId, inventory
   // Combine elements with live inventory data
   const elements = layout.elements.map((el: any) => {
     if (el.type === 'PLOT' && el.inventoryUnitId) {
-      const inv = inventoryUnits.find(iu => iu.id === el.inventoryUnitId);
+      const inv = liveInventoryData.find(iu => iu.id === el.inventoryUnitId);
       return { ...el, liveInventory: inv };
     }
     return el;
@@ -149,15 +171,8 @@ export const LayoutViewer: React.FC<LayoutViewerProps> = ({ projectId, inventory
   });
 
   const getStatusColors = (status: string) => {
-    switch (status) {
-      case 'AVAILABLE': return { fill: '#22c55e', stroke: '#15803d' };
-      case 'BOOKED': return { fill: '#3b82f6', stroke: '#1d4ed8' };
-      case 'HOLD': return { fill: '#eab308', stroke: '#a16207' };
-      case 'RESERVED': return { fill: '#f97316', stroke: '#c2410c' };
-      case 'REGISTERED': return { fill: '#ef4444', stroke: '#b91c1c' };
-      case 'SOLD': return { fill: '#991b1b', stroke: '#7f1d1d' };
-      default: return { fill: '#9ca3af', stroke: 'transparent' };
-    }
+    const color = getInventoryStatusColor(status);
+    return { fill: color, stroke: '#1f2937' }; // using standard stroke for viewer
   };
 
   return (
@@ -309,18 +324,54 @@ export const LayoutViewer: React.FC<LayoutViewerProps> = ({ projectId, inventory
                     }}
                   >
                     {!isText && (
-                      <Rect
-                        width={el.width}
-                        height={el.height}
-                        fill={fill}
-                        stroke={isMatch ? '#fbbf24' : (isSelected ? 'white' : stroke)} // yellow border if matched
-                        strokeWidth={isMatch ? 4 : (isSelected ? 4 : strokeWidth)}
-                        shadowColor={isSelected || isMatch ? 'black' : 'transparent'}
-                        shadowBlur={10}
-                        shadowOpacity={0.5}
-                        cornerRadius={el.type === 'PARK' ? 4 : 2}
-                        opacity={0.9}
-                      />
+                      el.type === 'PLOT' ? (
+                        <Line
+                          points={(() => {
+                            const w = el.width || 60;
+                            const h = el.height || 100;
+                            if (el.liveInventory) {
+                              return calculatePlotPolygon(
+                                el.liveInventory.northLength,
+                                el.liveInventory.southLength,
+                                el.liveInventory.eastLength,
+                                el.liveInventory.westLength,
+                                w,
+                                h
+                              );
+                            }
+                            return [0, 0, w, 0, w, h, 0, h];
+                          })()}
+                          closed={true}
+                          fill={isMatch ? '#fde047' : fill}
+                          stroke={isMatch ? '#000' : isSelected ? 'white' : stroke}
+                          strokeWidth={isMatch || isSelected ? 3 : strokeWidth}
+                          opacity={isMatch ? 1 : 0.9}
+                          shadowColor={isSelected ? 'black' : 'transparent'}
+                          shadowBlur={isSelected ? 10 : 0}
+                        />
+                      ) : el.type === 'ROAD' && el.elementData?.points && el.elementData.points.length > 0 ? (
+                        <Line
+                          points={el.elementData.points}
+                          stroke={fill}
+                          strokeWidth={el.elementData.roadWidth || el.height || 40}
+                          lineCap="round"
+                          lineJoin="round"
+                          tension={0.3}
+                          opacity={0.9}
+                        />
+                      ) : (
+                        <Rect
+                          width={el.width}
+                          height={el.height}
+                          fill={fill}
+                          stroke={isMatch ? '#000' : isSelected ? 'white' : stroke}
+                          strokeWidth={isMatch || isSelected ? 3 : strokeWidth}
+                          cornerRadius={el.type === 'PARK' ? 4 : 2}
+                          opacity={0.9}
+                          shadowColor={isSelected ? 'black' : 'transparent'}
+                          shadowBlur={isSelected ? 10 : 0}
+                        />
+                      )
                     )}
                     
                     {isText ? (
@@ -407,12 +458,12 @@ export const LayoutViewer: React.FC<LayoutViewerProps> = ({ projectId, inventory
               {/* Action Buttons */}
               {selectedElement.liveInventory.status === 'AVAILABLE' && (
                 <div className="pt-6 mt-4 border-t border-gray-100">
-                  <a 
-                    href={`/projects/${projectId}/book/${selectedElement.liveInventory.id}`}
+                  <button 
+                    onClick={() => navigate(`/bookings/create?projectId=${projectId}&unitId=${selectedElement.liveInventory.id}`)}
                     className="block w-full text-center bg-brand-gold text-white font-bold py-3 rounded-lg hover:bg-yellow-600 transition-colors"
                   >
                     Initiate Booking
-                  </a>
+                  </button>
                 </div>
               )}
             </div>

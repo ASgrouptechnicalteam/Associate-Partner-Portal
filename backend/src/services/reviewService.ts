@@ -7,18 +7,18 @@ import { NotificationService } from './notificationService';
 const prisma = new PrismaClient();
 
 export class ReviewService {
-  static async createReviewRequest(associateId: string, bookingId: string, interactionSummary?: string) {
+  static async createReviewRequest(userId: string, bookingId: string, interactionSummary?: string) {
     // Check if booking belongs to associate and is VERIFIED
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { associate: true }
+      include: { user: true }
     });
 
     if (!booking) {
       throw new Error('Booking not found');
     }
 
-    if (booking.associateId !== associateId) {
+    if (booking.userId !== userId) {
       throw new Error('Unauthorized: Booking does not belong to you');
     }
 
@@ -39,7 +39,7 @@ export class ReviewService {
     const reviewRequest = await prisma.reviewRequest.create({
       data: {
         token,
-        associateId,
+        userId,
         projectId: booking.projectId,
         bookingId,
         customerName: booking.customerName,
@@ -50,7 +50,7 @@ export class ReviewService {
     });
 
     await AuditService.log(
-      associateId,
+      userId,
       'CREATE_REVIEW_REQUEST',
       'ReviewRequest',
       reviewRequest.id,
@@ -64,7 +64,7 @@ export class ReviewService {
   static async getReviewRequests(userId: string, roleName: string) {
     if (roleName === 'ASSOCIATE') {
       return prisma.reviewRequest.findMany({
-        where: { associateId: userId },
+        where: { userId: userId },
         include: {
           project: { select: { name: true } },
           booking: { select: { unitNumber: true, status: true, customerName: true, inventoryUnit: { select: { unitNumber: true } } } },
@@ -72,19 +72,19 @@ export class ReviewService {
         },
         orderBy: { requestDate: 'desc' }
       });
-    } else if (roleName === 'ASSOCIATE_MANAGER' || roleName === 'MD') {
-      let associateIds: string[] | undefined;
+    } else if (roleName === 'CHANNEL_PARTNER_MANAGER' || roleName === 'MD') {
+      let userIds: string[] | undefined;
       
-      if (roleName === 'ASSOCIATE_MANAGER') {
+      if (roleName === 'CHANNEL_PARTNER_MANAGER') {
         const downline = await TeamService.getFullDownline(userId);
-        associateIds = downline;
+        userIds = downline;
       }
       // MD sees all
 
       return prisma.reviewRequest.findMany({
-        where: associateIds ? { associateId: { in: associateIds } } : undefined,
+        where: userIds ? { userId: { in: userIds } } : undefined,
         include: {
-          associate: { select: { name: true, associateId: true } },
+          associate: { select: { name: true, userId: true } },
           project: { select: { name: true } },
           booking: { select: { status: true, customerName: true, inventoryUnit: { select: { unitNumber: true } } } },
           review: true
@@ -107,7 +107,7 @@ export class ReviewService {
         requestDate: true,
         status: true,
         interactionSummary: true,
-        associate: { select: { name: true } },
+        user: { select: { name: true } },
         project: { select: { name: true } },
         booking: { select: { inventoryUnit: { select: { propertyType: true } } } }
       }
@@ -162,7 +162,7 @@ export class ReviewService {
       });
 
       await NotificationService.createNotification({
-        userId: reviewRequest.associateId,
+        userId: reviewRequest.userId,
         category: 'Review',
         title: 'New Review Submitted',
         message: `Your customer ${reviewRequest.customerName} has submitted a review for their booking.`,
@@ -182,12 +182,12 @@ export class ReviewService {
       throw new Error('Unauthorized');
     }
 
-    let associateIds: string[] | undefined;
-    if (roleName === 'ASSOCIATE_MANAGER') {
-      associateIds = await TeamService.getFullDownline(userId);
+    let userIds: string[] | undefined;
+    if (roleName === 'CHANNEL_PARTNER_MANAGER') {
+      userIds = await TeamService.getFullDownline(userId);
     }
 
-    const whereAssociate = associateIds ? { associateId: { in: associateIds } } : {};
+    const whereAssociate = userIds ? { userId: { in: userIds } } : {};
 
     const [totalReviews, averageRatings, totalBookings, totalSiteVisits, commissionSum] = await Promise.all([
       prisma.review.count({

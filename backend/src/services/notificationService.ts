@@ -82,7 +82,8 @@ export class NotificationService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.NotificationWhereInput = {
-      userId
+      userId,
+      isDismissed: false
     };
 
     if (options.category) {
@@ -119,7 +120,8 @@ export class NotificationService {
     const count = await prisma.notification.count({
       where: {
         userId,
-        isRead: false
+        isRead: false,
+        isDismissed: false
       }
     });
     return { count };
@@ -150,6 +152,35 @@ export class NotificationService {
       data: {
         isRead: true,
         readAt: new Date()
+      }
+    });
+  }
+
+  /**
+   * Dismisses a single notification, hiding it from the active UI list.
+   * Ensures it belongs to the authenticated user.
+   */
+  static async dismiss(notificationId: string, userId: string) {
+    const notification = await prisma.notification.findUnique({
+      where: { id: notificationId }
+    });
+
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
+
+    if (notification.userId !== userId) {
+      throw new Error('Forbidden'); // IDOR protection
+    }
+
+    if (notification.isDismissed) {
+      return notification;
+    }
+
+    return prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        isDismissed: true
       }
     });
   }

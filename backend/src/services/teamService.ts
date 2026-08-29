@@ -1,37 +1,16 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { AuditService } from './auditService';
+import { HierarchyService } from './hierarchyService';
 
 const prisma = new PrismaClient();
 
 export class TeamService {
   /**
    * Retrieves the full downline of a given user.
-   * Uses breadth-first search to avoid deep recursion limits, although hierarchy depth should be small.
    */
   static async getFullDownline(userId: string): Promise<string[]> {
-    const downlineIds = new Set<string>();
-    let currentLevelIds = [userId];
-
-    while (currentLevelIds.length > 0) {
-      const relationships = await prisma.teamRelationship.findMany({
-        where: {
-          parentAssociateId: { in: currentLevelIds },
-          status: 'ACTIVE'
-        },
-        select: { childAssociateId: true }
-      });
-
-      const nextLevelIds: string[] = [];
-      for (const rel of relationships) {
-        if (!downlineIds.has(rel.childAssociateId)) {
-          downlineIds.add(rel.childAssociateId);
-          nextLevelIds.push(rel.childAssociateId);
-        }
-      }
-      currentLevelIds = nextLevelIds;
-    }
-
-    return Array.from(downlineIds);
+    const descendants = await HierarchyService.getAllDescendants(userId);
+    return descendants.map(u => u.id);
   }
 
   /**
@@ -39,115 +18,65 @@ export class TeamService {
    */
   static async isAssociateInDownline(parentId: string, targetId: string): Promise<boolean> {
     if (parentId === targetId) return true; // Can see self
-    const downline = await getFullDownline(parentId);
+    const downline = await this.getFullDownline(parentId);
     return downline.includes(targetId);
   }
 
   /**
    * Assigns a child to a parent.
    */
-  static async assignAssociateToParent(parentAssociateId: string, childAssociateId: string) {
-    if (parentAssociateId === childAssociateId) {
+  static async assignAssociateToParent(parentUserId: string, childUserId: string) {
+    if (parentUserId === childUserId) {
       throw new Error("Cannot assign an associate to themselves.");
     }
 
     // Check for cycles: we cannot make A a child of B if B is already in A's downline.
-    const childDownline = await this.getFullDownline(childAssociateId);
-    if (childDownline.includes(parentAssociateId)) {
+    const childDownline = await this.getFullDownline(childUserId);
+    if (childDownline.includes(parentUserId)) {
       throw new Error("Hierarchy cycle detected. The proposed parent is already in the child's downline.");
     }
 
-    // Upsert the relationship: a child can only have ONE parent.
-    // In our schema, childAssociateId is @unique.
-    // Accept an optional Prisma transaction client.
-    return prisma.teamRelationship.upsert({
-      where: { childAssociateId },
-      update: {
-        parentAssociateId,
-        status: 'ACTIVE'
-      },
-      create: {
-        parentAssociateId,
-        childAssociateId,
-        status: 'ACTIVE'
-      }
+    return prisma.user.update({
+      where: { id: childUserId },
+      data: { parentId: parentUserId }
     });
   }
 
-  static async assignAssociateToParentTx(tx: Prisma.TransactionClient, parentAssociateId: string, childAssociateId: string) {
-    if (parentAssociateId === childAssociateId) {
+  static async assignAssociateToParentTx(tx: Prisma.TransactionClient, parentUserId: string, childUserId: string) {
+    if (parentUserId === childUserId) {
       throw new Error("Cannot assign an associate to themselves.");
     }
-    const childDownline = await this.getFullDownline(childAssociateId);
-    if (childDownline.includes(parentAssociateId)) {
+    const childDownline = await this.getFullDownline(childUserId); // Assuming getFullDownline doesn't need tx context for safety
+    if (childDownline.includes(parentUserId)) {
       throw new Error("Hierarchy cycle detected. The proposed parent is already in the child's downline.");
     }
-    return tx.teamRelationship.upsert({
-      where: { childAssociateId },
-      update: {
-        parentAssociateId,
-        status: 'ACTIVE'
-      },
-      create: {
-        parentAssociateId,
-        childAssociateId,
-        status: 'ACTIVE'
-      }
+    return tx.user.update({
+      where: { id: childUserId },
+      data: { parentId: parentUserId }
     });
   }
 
   /**
-   * Removes an associate's parent assignment (sets them to root level / no parent).
+   * Removes an associate's parent assignment.
    */
-  static async removeAssociateFromParent(childAssociateId: string) {
-    return prisma.teamRelationship.delete({
-      where: { childAssociateId }
+  static async removeAssociateFromParent(childUserId: string) {
+    return prisma.user.update({
+      where: { id: childUserId },
+      data: { parentId: null }
     });
   }
 
-  static async removeAssociateFromParentTx(tx: Prisma.TransactionClient, childAssociateId: string) {
-    return tx.teamRelationship.delete({
-      where: { childAssociateId }
+  static async removeAssociateFromParentTx(tx: Prisma.TransactionClient, childUserId: string) {
+    return tx.user.update({
+      where: { id: childUserId },
+      data: { parentId: null }
     });
   }
 
   /**
-   * Calculate Team Statistics
+   * Gets hierarchical stats for a user
    */
   static async getTeamStatistics(userId: string) {
-    const downlineIds = await this.getFullDownline(userId);
-    const directRelationships = await prisma.teamRelationship.findMany({
-      where: { parentAssociateId: userId, status: 'ACTIVE' }
-    });
-
-    const directMembers = directRelationships.length;
-    const totalMembers = downlineIds.length;
-
-    let totalBookings = 0;
-    let totalCommission = new Prisma.Decimal(0);
-
-    if (downlineIds.length > 0) {
-      totalBookings = await prisma.booking.count({
-        where: { associateId: { in: downlineIds } }
-      });
-
-      const transactions = await prisma.commissionTransaction.findMany({
-        where: { associateId: { in: downlineIds } }
-      });
-
-      for (const t of transactions) {
-        totalCommission = totalCommission.add(t.amountCalculated);
-      }
-    }
-
-    return {
-      directMembers,
-      totalMembers,
-      totalBookings,
-      totalCommission: totalCommission.toNumber()
-    };
+    return HierarchyService.getHierarchyStats(userId);
   }
 }
-
-// Keep a module-level alias for internal use
-const getFullDownline = TeamService.getFullDownline;

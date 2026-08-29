@@ -1,0 +1,28 @@
+{
+  "countsBefore": {
+    "users": 2,
+    "projects": 1,
+    "inventory": 2,
+    "bookings": 1,
+    "siteVisits": 0,
+    "demoBookings": 0,
+    "teams": 0,
+    "commissions": 0,
+    "notifications": 5,
+    "layouts": 7,
+    "layoutElements": 65
+  },
+  "countsAfter": {
+    "users": 2,
+    "projects": 0,
+    "inventory": 0,
+    "bookings": 0,
+    "siteVisits": 0,
+    "demoBookings": 0,
+    "teams": 0,
+    "commissions": 0,
+    "notifications": 0,
+    "layouts": 0,
+    "layoutElements": 0
+  }
+}

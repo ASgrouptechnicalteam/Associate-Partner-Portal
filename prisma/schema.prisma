@@ -8,14 +8,14 @@ generator client {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  associateId  String?   @unique
-  name         String
-  email        String    @unique
-  phone        String?
-  passwordHash String
-  status       String    @default("ACTIVE")
-  lastLoginAt  DateTime?
+  id             String    @id @default(uuid())
+  userIdentifier String?   @unique
+  name           String
+  email          String    @unique
+  phone          String?
+  passwordHash   String
+  status         String    @default("ACTIVE")
+  lastLoginAt    DateTime?
 
   mustChangePassword Boolean @default(false)
   activeSessionId    String?
@@ -49,18 +49,25 @@ model User {
   emergencyContactRelation String?
   emergencyContactPhone    String?
 
-  // 5. Official Associate Details
+  // 5. Official Details
   jobTitle             String?
   department           String?
   workLocation         String?
   dateOfJoining        DateTime?
+  designation          String?
   commissionPercentage Float?
 
   roleId String
   role   Role   @relation(fields: [roleId], references: [id])
 
-  downline TeamRelationship[] @relation("Downline")
-  upline   TeamRelationship?  @relation("Upline") // An associate has at most one parent
+  parentId String?
+  parent   User?   @relation("UserHierarchy", fields: [parentId], references: [id])
+  children User[]  @relation("UserHierarchy")
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+
+  headedTeams Team[] @relation("TeamHead")
 
   bookings               Booking[]
   commissionPolicies     CommissionPolicy[]
@@ -70,9 +77,8 @@ model User {
   teamRequestsTargeted TeamRequest[] @relation("TeamRequestTarget")
   teamRequestsProposed TeamRequest[] @relation("TeamRequestProposedParent")
 
-  travelRequestsMade TravelRequest[] @relation("TravelRequester")
-
   siteVisits     SiteVisit[]
+  demoBookings   DemoBooking[]
   reviewRequests ReviewRequest[]
   notifications  Notification[]
 
@@ -82,7 +88,7 @@ model User {
 
 model Role {
   id          String  @id @default(uuid())
-  name        String  @unique // MD, ASSOCIATE_MANAGER, ASSOCIATE
+  name        String  @unique // MD, CHANNEL_PARTNER_MANAGER, ASSOCIATE
   description String?
 
   users       User[]
@@ -103,15 +109,16 @@ model Permission {
   updatedAt DateTime @updatedAt
 }
 
-model TeamRelationship {
-  id                String   @id @default(uuid())
-  parentAssociateId String
-  childAssociateId  String   @unique // A child has exactly one direct manager/parent
-  parent            User     @relation("Downline", fields: [parentAssociateId], references: [id])
-  child             User     @relation("Upline", fields: [childAssociateId], references: [id])
-  status            String   @default("ACTIVE")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+model Team {
+  id         String  @id @default(uuid())
+  name       String
+  headUserId String?
+  headUser   User?   @relation("TeamHead", fields: [headUserId], references: [id], onDelete: SetNull)
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model TeamRequest {
@@ -119,8 +126,8 @@ model TeamRequest {
   requesterId String
   requester   User   @relation("TeamRequester", fields: [requesterId], references: [id])
 
-  targetAssociateId String
-  targetAssociate   User   @relation("TeamRequestTarget", fields: [targetAssociateId], references: [id])
+  targetUserId String
+  targetUser   User   @relation("TeamRequestTarget", fields: [targetUserId], references: [id])
 
   proposedParentId String?
   proposedParent   User?   @relation("TeamRequestProposedParent", fields: [proposedParentId], references: [id])
@@ -147,6 +154,7 @@ model Project {
   status             String  @default("DRAFT") // DRAFT, SUBMITTED, PENDING_APPROVAL, ACTIVE, INACTIVE, ARCHIVED
   verificationStatus String  @default("UNVERIFIED") // UNVERIFIED, VERIFIED, REJECTED
   isFeatured         Boolean @default(false)
+  isHot              Boolean @default(false)
 
   createdBy       String
   approvedBy      String?
@@ -173,8 +181,8 @@ model Project {
   bookings               Booking[]
   commissionPolicies     CommissionPolicy[]
   commissionTransactions CommissionTransaction[]
-  travelRequests         TravelRequest[]
   siteVisits             SiteVisit[]
+  demoBookings           DemoBooking[]
   offers                 Offer[]
   reviewRequests         ReviewRequest[]
   layouts                ProjectLayout[]
@@ -198,16 +206,33 @@ model ProjectMedia {
 }
 
 model InventoryUnit {
-  id           String   @id @default(uuid())
+  id           String  @id @default(uuid())
   projectId    String
-  project      Project  @relation(fields: [projectId], references: [id])
+  project      Project @relation(fields: [projectId], references: [id])
   unitNumber   String
   propertyType String // e.g. "PLOT", "UNIT"
   size         String?
   price        Decimal
-  status       String   @default("AVAILABLE") // AVAILABLE, BOOKED, BLOCKED
-  metadata     Json?
-  booking      Booking?
+  status       String  @default("AVAILABLE") // AVAILABLE, BOOKED, BLOCKED
+
+  // Specific Fields (Plots & Apartments)
+  facing          String?
+  shape           String?
+  area            Float?
+  roadInformation String?
+  northBoundary   String?
+  southBoundary   String?
+  eastBoundary    String?
+  westBoundary    String?
+  northLength     Float?
+  southLength     Float?
+  eastLength      Float?
+  westLength      Float?
+  towerBlock      String?
+  floor           String?
+
+  metadata       Json?
+  booking        Booking?
   layoutElements LayoutElement[]
 
   createdAt DateTime @default(now())
@@ -256,9 +281,9 @@ model PromotionalPopup {
 }
 
 model Booking {
-  id          String @id @default(uuid())
-  associateId String
-  associate   User   @relation(fields: [associateId], references: [id])
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id])
@@ -309,9 +334,9 @@ model AuditLog {
 }
 
 model CommissionPolicy {
-  id          String @id @default(uuid())
-  associateId String
-  associate   User   @relation(fields: [associateId], references: [id])
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id])
@@ -329,7 +354,7 @@ model CommissionPolicy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([associateId, projectId]) // An associate can have one policy per project, or one global (null project)
+  @@unique([userId, projectId]) // A user can have one policy per project, or one global (null project)
 }
 
 model CommissionTransaction {
@@ -337,8 +362,8 @@ model CommissionTransaction {
   bookingId String  @unique
   booking   Booking @relation(fields: [bookingId], references: [id])
 
-  associateId String
-  associate   User   @relation(fields: [associateId], references: [id])
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id])
@@ -357,76 +382,18 @@ model CommissionTransaction {
   updatedAt DateTime @updatedAt
 }
 
-model TravelRequest {
-  id String @id @default(uuid())
-
-  // Requester — ALWAYS from session, never from request body
-  requesterId String
-  requester   User   @relation("TravelRequester", fields: [requesterId], references: [id])
-
-  // Travel details
-  travelDate   DateTime
-  fromLocation String
-  toLocation   String
-  purpose      String   @db.Text
-
-  // Optional project linkage
-  projectId String?
-  project   Project? @relation(fields: [projectId], references: [id])
-
-  // Customer (free text)
-  customerName String?
-
-  // Distance & mode
-  distanceKm Decimal @db.Decimal(10, 2)
-  travelMode String // OWN_VEHICLE | TAXI | PUBLIC_TRANSPORT | AUTO | OTHER
-
-  // Financial — Decimal to prevent float precision loss
-  amountRequested Decimal @db.Decimal(12, 2)
-
-  // Supporting bill upload
-  billUrl String?
-
-  // Notes
-  notes String? @db.Text
-
-  // State machine
-  // PENDING -> MD_REVIEW -> APPROVED -> PAID
-  // PENDING -> MD_REVIEW -> REJECTED (terminal)
-  status String @default("PENDING")
-
-  // Review fields
-  reviewedBy      String?
-  reviewedAt      DateTime?
-  rejectionReason String?   @db.Text
-
-  // Payment fields
-  paidBy       String?
-  paidAt       DateTime?
-  amountPaid   Decimal?  @db.Decimal(12, 2)
-  paymentNotes String?   @db.Text
-
-  // Soft-delete guard — never destructively removed
-  isDeleted Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([requesterId])
-  @@index([status])
-  @@index([travelDate])
-}
-
 model SiteVisit {
-  id          String  @id @default(uuid())
-  associateId String
-  associate   User    @relation(fields: [associateId], references: [id])
-  projectId   String
-  project     Project @relation(fields: [projectId], references: [id])
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
 
   customerName  String
   customerPhone String
   customerEmail String?
+
+  isDemo Boolean @default(false)
 
   visitDate DateTime
   visitTime String
@@ -444,9 +411,42 @@ model SiteVisit {
   cancelledAt   DateTime?
   rescheduledAt DateTime?
 
-  @@index([associateId])
+  @@index([userId])
   @@index([projectId])
   @@index([visitDate])
+  @@index([status])
+}
+
+model DemoBooking {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  customerName  String
+  customerPhone String
+  customerEmail String?
+
+  scheduledDate DateTime
+  scheduledTime String
+
+  status String @default("SCHEDULED") // SCHEDULED, CONDUCTED, CANCELLED, RESCHEDULED
+
+  outcome          String?   @db.Text
+  followUpRequired Boolean   @default(false)
+  followUpDate     DateTime?
+  remarks          String?   @db.Text
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  rescheduledAt DateTime?
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([scheduledDate])
   @@index([status])
 }
 
@@ -474,8 +474,8 @@ model Offer {
 model ReviewRequest {
   id                 String   @id @default(uuid())
   token              String   @unique
-  associateId        String
-  associate          User     @relation(fields: [associateId], references: [id])
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
   projectId          String
   project            Project  @relation(fields: [projectId], references: [id])
   bookingId          String   @unique
@@ -492,7 +492,7 @@ model ReviewRequest {
 
   review Review?
 
-  @@index([associateId])
+  @@index([userId])
   @@index([status])
   @@index([projectId])
 }
@@ -512,21 +512,22 @@ model Review {
 }
 
 model Notification {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  category   String   // Booking, Project, Commission, Travel, Team, Approval, Offer, Site Visit, Review, System
+  user       User      @relation(fields: [userId], references: [id])
+  category   String // Booking, Project, Commission, Travel, Team, Approval, Offer, Site Visit, Review, System
   title      String
-  message    String   @db.Text
+  message    String    @db.Text
   entityType String?
   entityId   String?
   actionUrl  String?
-  eventKey   String?  // Deterministic identifier for duplicate prevention (e.g. BOOKING_VERIFIED_123)
-  isRead     Boolean  @default(false)
+  eventKey   String? // Deterministic identifier for duplicate prevention (e.g. BOOKING_VERIFIED_123)
+  isRead     Boolean   @default(false)
   readAt     DateTime?
-  
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isDismissed Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([isRead])
@@ -535,104 +536,104 @@ model Notification {
 }
 
 model Faq {
-  id             String   @id @default(uuid())
-  question       String   @db.Text
-  answer         String   @db.Text
+  id             String  @id @default(uuid())
+  question       String  @db.Text
+  answer         String  @db.Text
   category       String
-  roleVisibility Json     // Array of allowed roles, e.g. ["MD", "ASSOCIATE"]
-  isPublished    Boolean  @default(true)
-  displayOrder   Int      @default(0)
+  roleVisibility Json // Array of allowed roles, e.g. ["MD", "ASSOCIATE"]
+  isPublished    Boolean @default(true)
+  displayOrder   Int     @default(0)
 
   relatedTutorialSlug String?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([category])
   @@index([isPublished])
 }
 
 model Tutorial {
-  id             String   @id @default(uuid())
+  id             String  @id @default(uuid())
   title          String
-  slug           String   @unique
+  slug           String  @unique
   category       String
-  description    String?  @db.Text
-  roleVisibility Json     // Array of allowed roles
-  isPublished    Boolean  @default(true)
-  displayOrder   Int      @default(0)
+  description    String? @db.Text
+  roleVisibility Json // Array of allowed roles
+  isPublished    Boolean @default(true)
+  displayOrder   Int     @default(0)
 
-  steps          TutorialStep[]
+  steps TutorialStep[]
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([category])
   @@index([isPublished])
 }
 
 model TutorialStep {
-  id             String   @id @default(uuid())
-  tutorialId     String
-  tutorial       Tutorial @relation(fields: [tutorialId], references: [id], onDelete: Cascade)
-  
+  id         String   @id @default(uuid())
+  tutorialId String
+  tutorial   Tutorial @relation(fields: [tutorialId], references: [id], onDelete: Cascade)
+
   stepNumber     Int
   title          String
-  explanation    String   @db.Text
-  targetSelector String?  // CSS selector for the DOM element to highlight (optional)
+  explanation    String  @db.Text
+  targetSelector String? // CSS selector for the DOM element to highlight (optional)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([tutorialId, stepNumber])
 }
 
 model ProjectLayout {
-  id                String   @id @default(uuid())
+  id                String  @id @default(uuid())
   projectId         String
-  project           Project  @relation(fields: [projectId], references: [id])
+  project           Project @relation(fields: [projectId], references: [id])
   name              String // e.g. "Ground Floor", "Block A", "Master Layout"
-  version           String   @default("v1")
-  status            String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
-  canvasWidth       Int      @default(3000)
-  canvasHeight      Int      @default(3000)
+  version           String  @default("v1")
+  status            String  @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  canvasWidth       Int     @default(3000)
+  canvasHeight      Int     @default(3000)
   backgroundImage   String?
-  backgroundOpacity Float    @default(1.0)
-  gridSize          Int      @default(20)
-  
-  createdBy         String?
-  updatedBy         String?
-  publishedBy       String?
-  publishedAt       DateTime?
+  backgroundOpacity Float   @default(1.0)
+  gridSize          Int     @default(20)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  elements          LayoutElement[]
+  createdBy   String?
+  updatedBy   String?
+  publishedBy String?
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  elements LayoutElement[]
 
   @@index([projectId])
 }
 
 model LayoutElement {
-  id              String        @id @default(uuid())
-  layoutId        String
-  layout          ProjectLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
-  
-  type            String        // PLOT, ROAD, AMENITY, TEXT, etc.
-  inventoryUnitId String?       // Link to existing InventoryUnit
+  id       String        @id @default(uuid())
+  layoutId String
+  layout   ProjectLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+
+  type            String // PLOT, ROAD, AMENITY, TEXT, etc.
+  inventoryUnitId String? // Link to existing InventoryUnit
   inventoryUnit   InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
-  
-  x               Float
-  y               Float
-  width           Float?
-  height          Float?
-  rotation        Float         @default(0)
-  zIndex          Int           @default(1)
-  
-  elementData     Json?         // Custom properties (points, color, labels, road type, plot facing)
-  
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+
+  x        Float
+  y        Float
+  width    Float?
+  height   Float?
+  rotation Float  @default(0)
+  zIndex   Int    @default(1)
+
+  elementData Json? // Custom properties (points, color, labels, road type, plot facing)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([layoutId])
 }

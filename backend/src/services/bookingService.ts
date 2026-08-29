@@ -17,9 +17,9 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 };
 
 export class BookingService {
-  static async createBooking(associateId: string, data: any, ipAddress?: string) {
+  static async createBooking(userId: string, data: any, ipAddress?: string) {
     // 1. Validation & Atomic execution using Prisma Transaction
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Revalidate Project
       const project = await tx.project.findUnique({ where: { id: data.projectId } });
       if (!project || project.status !== 'ACTIVE' || project.verificationStatus !== 'VERIFIED') {
@@ -37,6 +37,18 @@ export class BookingService {
         throw new Error('Inventory unit is no longer available. Concurrent booking prevented.');
       }
 
+      // 1.1 Atomic state update to prevent duplicate booking
+      // Using updateMany allows us to guarantee concurrency safety by relying on the DB engine's native locking,
+      // updating ONLY if the status is still 'AVAILABLE'.
+      const updatedInventory = await tx.inventoryUnit.updateMany({
+        where: { id: data.inventoryUnitId, status: 'AVAILABLE' },
+        data: { status: 'BOOKED' }
+      });
+
+      if (updatedInventory.count === 0) {
+        throw new Error('Inventory unit is no longer available. Concurrent booking prevented.');
+      }
+
       // Authoritative Price check (optional, but good practice to ensure client isn't sending a fake expected amount)
       // The requirement says: "Revalidate... authoritative price before creating a booking."
       // Assuming expectedAmount should match inventory price.
@@ -46,7 +58,7 @@ export class BookingService {
       // Create Booking
       const booking = await tx.booking.create({
         data: {
-          associateId,
+          userId,
           projectId: data.projectId,
           inventoryUnitId: data.inventoryUnitId,
           customerName: data.customerName,
@@ -65,16 +77,12 @@ export class BookingService {
         }
       });
 
-      // Update Inventory Status to BLOCKED
-      const updatedInventory = await tx.inventoryUnit.update({
-        where: { id: inventoryUnit.id },
-        data: { status: 'BLOCKED' }
-      });
+      // Inventory was atomically updated above.
 
       // Audit logs
       await AuditService.logWithTx(
         tx,
-        associateId,
+        userId,
         'CREATE_BOOKING',
         'Booking',
         booking.id,
@@ -85,12 +93,12 @@ export class BookingService {
 
       await AuditService.logWithTx(
         tx,
-        associateId,
+        userId,
         'UPDATE_INVENTORY_STATUS',
         'InventoryUnit',
         inventoryUnit.id,
         { status: inventoryUnit.status },
-        { status: updatedInventory.status },
+        { status: 'BOOKED' },
         { bookingId: booking.id, ipAddress }
       );
 
@@ -98,10 +106,62 @@ export class BookingService {
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable // Maximum concurrency protection
     });
+
+    // --- Post-transaction: notify after successful commit ---
+    // Fetch project name and creator name for notification message
+    try {
+      const [project, creator, managers] = await Promise.all([
+        prisma.project.findUnique({ where: { id: result.projectId }, select: { name: true } }),
+        prisma.user.findUnique({ where: { id: userId }, select: { name: true, userIdentifier: true } }),
+        prisma.user.findMany({
+          where: { role: { name: { in: ['MD', 'CHANNEL_PARTNER_MANAGER'] } }, status: 'ACTIVE' },
+          select: { id: true }
+        })
+      ]);
+
+      const projectName = project?.name || 'Unknown Project';
+      const creatorName = creator?.name || 'An associate';
+      const creatorId = creator?.userIdentifier || '';
+
+      // Notify management about new booking
+      const mgmtNotifications = managers
+        .filter(m => m.id !== userId)
+        .map(m => ({
+          userId: m.id,
+          category: 'Booking',
+          title: 'New Booking Submitted',
+          message: `${creatorName} (${creatorId}) submitted a new booking for ${projectName}.`,
+          entityType: 'Booking',
+          entityId: result.id,
+          actionUrl: `/bookings/${result.id}`,
+          eventKey: `BOOKING_CREATED_MGT_${result.id}_${m.id}`
+        }));
+
+      // Notify the creator as confirmation
+      mgmtNotifications.push({
+        userId,
+        category: 'Booking',
+        title: 'Booking Submitted Successfully',
+        message: `Your booking for ${projectName} has been submitted and is under review.`,
+        entityType: 'Booking',
+        entityId: result.id,
+        actionUrl: `/bookings/${result.id}`,
+        eventKey: `BOOKING_CREATED_CONFIRM_${result.id}`
+      });
+
+      NotificationService.createNotifications(mgmtNotifications).catch(err => {
+        console.error('Failed to send booking creation notifications:', err);
+      });
+    } catch (notifErr) {
+      console.error('Non-critical: booking notification error:', notifErr);
+    }
+
+    return result;
   }
 
+
   static async updateBookingStatus(bookingId: string, newStatus: string, actorId: string, role: string, reason?: string, ipAddress?: string) {
-    if (role !== 'MD' && role !== 'ASSOCIATE_MANAGER') {
+    if (role !== 'MD' && role !== 'CHANNEL_PARTNER_MANAGER') {
       throw new Error('Only MD or AM can update booking status.');
     }
 
@@ -180,7 +240,7 @@ export class BookingService {
 
       // Phase 12: Notification Generation
       await NotificationService.createNotification({
-        userId: booking.associateId,
+        userId: booking.userId,
         category: 'Booking',
         title: `Booking ${newStatus}`,
         message: `Your booking for ${booking.project.name} has been marked as ${newStatus}.`,
@@ -194,14 +254,14 @@ export class BookingService {
     });
   }
 
-  static async getBookingById(bookingId: string, associateId: string, role: string) {
+  static async getBookingById(bookingId: string, userId: string, role: string) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
         project: true,
         inventoryUnit: true,
-        associate: {
-          select: { id: true, name: true, associateId: true }
+        user: {
+          select: { id: true, name: true, userIdentifier: true, profileImageUrl: true }
         }
       }
     });
@@ -210,18 +270,26 @@ export class BookingService {
 
     // Downward hierarchy filtering
     if (role === 'ASSOCIATE') {
-      if (booking.associateId !== associateId) {
-        const isDownline = await TeamService.isAssociateInDownline(associateId, booking.associateId);
+      if (booking.userId !== userId) {
+        const isDownline = await TeamService.isAssociateInDownline(userId, booking.userId);
         if (!isDownline) {
           throw new Error('Forbidden: You do not have permission to view this booking.');
         }
       }
     }
 
-    return booking;
+    const { user, ...bookingWithoutUser } = booking as any;
+    return {
+      ...bookingWithoutUser,
+      associate: user ? {
+        id: user.id,
+        name: user.name,
+        userId: user.userIdentifier
+      } : null
+    };
   }
 
-  static async getBookingsList(associateId: string, role: string, filters: any = {}) {
+  static async getBookingsList(userId: string, role: string, filters: any = {}) {
     // If MD or AM, they can see all (or filtered by team if they want)
     // If Associate, they can only see their own OR their downline
     
@@ -237,27 +305,40 @@ export class BookingService {
 
     if (role === 'ASSOCIATE') {
       if (filters.view === 'TEAM') {
-        const downline = await TeamService.getFullDownline(associateId);
-        whereClause.associateId = { in: [associateId, ...downline] };
+        const downline = await TeamService.getFullDownline(userId);
+        whereClause.userId = { in: [userId, ...downline] };
       } else {
         // Default to MY bookings
-        whereClause.associateId = associateId;
+        whereClause.userId = userId;
       }
     } else {
       // MD/AM can also filter by a specific associate
-      if (filters.associateId) {
-        whereClause.associateId = filters.associateId;
+      if (filters.userId) {
+        whereClause.userId = filters.userId;
       }
     }
 
-    return prisma.booking.findMany({
+    const bookings = await prisma.booking.findMany({
       where: whereClause,
       include: {
         project: { select: { id: true, name: true, code: true } },
         inventoryUnit: { select: { id: true, unitNumber: true, propertyType: true } },
-        associate: { select: { id: true, name: true, associateId: true } }
+        user: { select: { id: true, name: true, userIdentifier: true, profileImageUrl: true } }
       },
       orderBy: { createdAt: 'desc' }
+    });
+
+    return bookings.map((b: any) => {
+      const { user, ...rest } = b;
+      return {
+        ...rest,
+        associate: user ? {
+          id: user.id,
+          name: user.name,
+          userId: user.userIdentifier,
+          profileImageUrl: user.profileImageUrl
+        } : null
+      };
     });
   }
 }

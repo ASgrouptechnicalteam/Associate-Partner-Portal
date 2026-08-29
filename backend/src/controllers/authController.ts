@@ -5,8 +5,11 @@ import { AuthenticatedRequest } from '../middleware/authMiddleware';
 
 export const login = async (req: Request, res: Response) => {
   try {
+    console.log('[DEBUG] Login Request Body:', req.body);
     const validatedData = loginSchema.parse(req.body);
-    const result = await authService.loginUser(validatedData.associateId, validatedData.password);
+    console.log('[DEBUG] Validated Data:', validatedData);
+    const result = await authService.loginUser(validatedData.userId, validatedData.password);
+    console.log('[DEBUG] AuthService Result:', result);
 
     if (!result.success) {
       return res.status(result.status || 401).json({ success: false, message: result.message });

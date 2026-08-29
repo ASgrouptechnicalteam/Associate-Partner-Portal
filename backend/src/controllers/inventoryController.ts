@@ -41,7 +41,7 @@ export const updateInventoryStatus = async (req: AuthenticatedRequest, res: Resp
 export const getInventoryByProject = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { projectId } = req.params as { projectId: string };
-    const isManager = req.user!.role === 'MD' || req.user!.role === 'ASSOCIATE_MANAGER';
+    const isManager = req.user!.role === 'MD' || req.user!.role === 'CHANNEL_PARTNER_MANAGER';
     const inventory = await InventoryService.getInventoryByProject(projectId, isManager);
     return res.status(200).json({ success: true, data: inventory });
   } catch (error: any) {
@@ -53,7 +53,7 @@ export const getInventoryByProject = async (req: AuthenticatedRequest, res: Resp
 export const getInventoryUnitById = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params as { id: string };
-    const isManager = req.user!.role === 'MD' || req.user!.role === 'ASSOCIATE_MANAGER';
+    const isManager = req.user!.role === 'MD' || req.user!.role === 'CHANNEL_PARTNER_MANAGER';
     const unit = await InventoryService.getInventoryUnitById(id, isManager);
     if (!unit) {
       return res.status(404).json({ success: false, message: 'Inventory not found or access denied' });

@@ -6,11 +6,20 @@ import { AuditService } from '../services/auditService';
 
 const prisma = new PrismaClient();
 
+import { TeamService } from '../services/teamService';
+
 export const getPolicies = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    let whereClause: any = {};
+    if (req.user!.role === 'CHANNEL_PARTNER_MANAGER') {
+      const downline = await TeamService.getFullDownline(req.user!.id);
+      whereClause.userId = { in: [req.user!.id, ...downline] };
+    }
+
     const policies = await prisma.commissionPolicy.findMany({
+      where: whereClause,
       include: {
-        associate: { select: { name: true, associateId: true } },
+        associate: { select: { name: true, userId: true } },
         project: { select: { name: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -22,7 +31,7 @@ export const getPolicies = async (req: AuthenticatedRequest, res: Response): Pro
 };
 
 const createPolicySchema = z.object({
-  associateId: z.string().uuid(),
+  userId: z.string().uuid(),
   projectId: z.string().uuid().optional().nullable(),
   type: z.enum(['PERCENTAGE', 'FIXED']),
   value: z.number().positive(),
@@ -30,11 +39,11 @@ const createPolicySchema = z.object({
 
 export const createPolicy = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { associateId, projectId, type, value } = createPolicySchema.parse(req.body);
+    const { userId, projectId, type, value } = createPolicySchema.parse(req.body);
 
     const policy = await prisma.commissionPolicy.create({
       data: {
-        associateId,
+        userId,
         projectId,
         type,
         value: new Prisma.Decimal(value),
@@ -135,7 +144,7 @@ export const getDashboardKPIs = async (req: AuthenticatedRequest, res: Response)
     // Authorization filter
     let whereClause: any = {};
     if (role === 'ASSOCIATE') {
-      whereClause.associateId = id;
+      whereClause.userId = id;
     }
 
     const transactions = await prisma.commissionTransaction.findMany({ where: whereClause });
@@ -171,7 +180,7 @@ export const getLedger = async (req: AuthenticatedRequest, res: Response): Promi
     let whereClause: any = {};
 
     if (role === 'ASSOCIATE') {
-      whereClause.associateId = id;
+      whereClause.userId = id;
     }
 
     if (projectId) {

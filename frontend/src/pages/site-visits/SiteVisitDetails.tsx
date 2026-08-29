@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Avatar } from '../../components/ui/Avatar';
 
 export default function SiteVisitDetails() {
   const { id } = useParams<{ id: string }>();
@@ -130,7 +131,16 @@ export default function SiteVisitDetails() {
             </div>
             <div className="sm:col-span-1">
               <dt className="text-sm font-medium text-gray-500">Associate</dt>
-              <dd className="mt-1 text-sm text-gray-900">{visit.associate?.name}</dd>
+              <dd className="mt-1 text-sm text-gray-900">
+                {visit.associate ? (
+                  <div className="flex items-center gap-2">
+                    <Avatar name={visit.associate.name} imageUrl={visit.associate.profileImageUrl} size="sm" />
+                    <span>{visit.associate.name}</span>
+                  </div>
+                ) : (
+                  '-'
+                )}
+              </dd>
             </div>
             <div className="sm:col-span-2">
               <dt className="text-sm font-medium text-gray-500">Remarks</dt>

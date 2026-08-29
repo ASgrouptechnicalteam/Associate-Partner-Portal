@@ -9,6 +9,7 @@ import { formatCurrency } from '../../utils/currency';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { AddUnitModal } from '../../components/projects/inventory/AddUnitModal';
 
 const ProjectDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,9 +26,10 @@ const ProjectDetails: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [settingCoverId, setSettingCoverId] = useState<string | null>(null);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const [isAddUnitModalOpen, setIsAddUnitModalOpen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
-  const isManager = user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER';
+  const isManager = user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER';
   const isMD = user?.role === 'MD';
 
   useEffect(() => {
@@ -171,6 +173,43 @@ const ProjectDetails: React.FC = () => {
                   }} variant="danger" leftIcon={<XCircle size={16} />}>Reject</Button>
               </>
             )}
+            <Button 
+              onClick={() => {
+                api.patch(`/projects/${id}/hot`, { isHot: !project.isHot })
+                  .then(() => fetchProject())
+                  .catch((err: any) => alert(err.response?.data?.message || 'Failed'));
+              }} 
+              variant="outline"
+              className={project.isHot ? "bg-orange-50 border-orange-200 text-orange-600" : ""}
+            >
+              {project.isHot ? 'Remove from Hot' : 'Mark as Hot'}
+            </Button>
+            <Button 
+              onClick={() => {
+                api.patch(`/projects/${id}/featured`, { isFeatured: !project.isFeatured })
+                  .then(() => fetchProject())
+                  .catch((err: any) => alert(err.response?.data?.message || 'Failed'));
+              }} 
+              variant="outline"
+              className={project.isFeatured ? "bg-blue-50 border-blue-200 text-blue-600" : ""}
+            >
+              {project.isFeatured ? 'Remove from Featured' : 'Mark as Featured'}
+            </Button>
+            <Button 
+              onClick={() => {
+                if (window.confirm('Are you sure you want to delete or archive this project? Historical bookings may be preserved.')) {
+                  api.delete(`/projects/${id}`)
+                    .then(() => {
+                      alert('Project deleted successfully');
+                      navigate('/projects');
+                    })
+                    .catch((err: any) => alert(err.response?.data?.message || 'Failed to delete project'));
+                }
+              }} 
+              variant="danger"
+            >
+              Delete Project
+            </Button>
           </div>
         )}
       </div>
@@ -196,6 +235,11 @@ const ProjectDetails: React.FC = () => {
               <Badge variant={project.status === 'ACTIVE' ? 'success' : 'warning'} className="backdrop-blur-md">
                 {project.status.replace('_', ' ')}
               </Badge>
+              {project.isHot && (
+                <Badge variant="warning" className="bg-orange-500/20 text-orange-100 border-orange-400/30 backdrop-blur-md">
+                  HOT PROPERTY
+                </Badge>
+              )}
             </div>
             <h1 className="text-3xl md:text-4xl font-bold mb-2">{project.name}</h1>
             <div className="flex items-center gap-2 text-gray-200 text-sm md:text-base">
@@ -232,7 +276,11 @@ const ProjectDetails: React.FC = () => {
       {/* Tab Content */}
       <div className="pt-2">
         {activeTab === 'layout_manager' && isManager ? (
-          <LayoutDesigner projectId={project.id} inventoryUnits={project.inventory || []} />
+          <LayoutDesigner 
+            projectId={project.id} 
+            inventoryUnits={project.inventory || []} 
+            onRefreshProject={fetchProject}
+          />
         ) : activeTab === 'layout' ? (
           <div className="space-y-6">
             <LayoutViewer projectId={project.id} inventoryUnits={project.inventory || []} />
@@ -240,7 +288,11 @@ const ProjectDetails: React.FC = () => {
             <Card padding="md">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-primary-navy">Inventory List</h2>
-                {isManager && <Button size="sm" variant="outline">+ Add Unit</Button>}
+                {isManager && (
+                  <Button size="sm" variant="outline" onClick={() => setIsAddUnitModalOpen(true)}>
+                    + Add Unit
+                  </Button>
+                )}
               </div>
               
               {project.inventory && project.inventory.length > 0 ? (
@@ -493,6 +545,19 @@ const ProjectDetails: React.FC = () => {
             />
           </div>
         </div>
+      )}
+
+      {isAddUnitModalOpen && (
+        <AddUnitModal
+          projectId={project.id}
+          isOpen={isAddUnitModalOpen}
+          onClose={() => setIsAddUnitModalOpen(false)}
+          onSuccess={() => {
+            setSuccessMsg('Unit added successfully');
+            fetchProject();
+            setTimeout(() => setSuccessMsg(''), 3000);
+          }}
+        />
       )}
     </div>
   );

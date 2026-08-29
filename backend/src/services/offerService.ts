@@ -5,7 +5,7 @@ import { NotificationService } from './notificationService';
 const prisma = new PrismaClient();
 
 export class OfferService {
-  static async getAll(role: string, associateId?: string): Promise<any[]> {
+  static async getAll(role: string, userId?: string): Promise<any[]> {
     const isAssociate = role === 'ASSOCIATE';
     const where: any = isAssociate ? {
       status: 'ACTIVE',
@@ -29,7 +29,7 @@ export class OfferService {
       }
     });
 
-    if (!isAssociate || !associateId) return offers;
+    if (!isAssociate || !userId) return offers;
 
     // For Associate, calculate dynamic progress
     const enrichedOffers = [];
@@ -39,7 +39,7 @@ export class OfferService {
       if (offer.targetBookings) {
         // Find VERIFIED bookings for this associate, within offer dates, for the specific project if applicable
         const bookingWhere: any = {
-          associateId: associateId,
+          userId: userId,
           status: 'VERIFIED'
         };
 

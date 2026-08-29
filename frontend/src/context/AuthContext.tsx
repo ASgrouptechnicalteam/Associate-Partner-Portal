@@ -3,7 +3,7 @@ import api from '../services/api';
 
 export interface User {
   id: string;
-  associateId?: string;
+  userIdentifier?: string;
   name: string;
   email: string;
   phone: string;

@@ -1,7 +1,7 @@
 {
-  "name": "associate-partner-portal",
+  "name": "marketing-sales-portal",
   "version": "1.0.0",
-  "description": "Sonthillu Constructions Associate Partner Portal",
+  "description": "Marketing & Sales Portal",
   "private": true,
   "workspaces": [
     "frontend",

@@ -50,6 +50,10 @@ export function PwaProvider({ children }: { children: ReactNode }) {
       setIsInstallable(true);
     };
 
+    if ((window as any).deferredPWAEvent) {
+      handleBeforeInstallPrompt((window as any).deferredPWAEvent);
+    }
+
     const handleAppInstalled = () => {
       setIsInstallable(false);
       setIsInstalled(true);

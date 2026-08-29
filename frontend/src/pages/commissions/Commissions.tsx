@@ -67,7 +67,7 @@ export default function Commissions() {
           <h1 className="text-2xl font-bold text-primary-navy">Commissions</h1>
           <p className="text-muted-text mt-1 text-sm font-medium">Track your earnings, ledger, and payment status.</p>
         </div>
-        {(user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER') && (
+        {(user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER') && (
           <Button onClick={() => setShowManager(true)}>
             Manage Policy Rates
           </Button>

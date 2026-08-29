@@ -13,7 +13,11 @@ import {
 export const userController = {
   async getUsers(req: AuthenticatedRequest, res: Response) {
     try {
-      const result = await userService.getUsers(req.query);
+      const result = await userService.getUsers({
+        ...req.query,
+        authenticatedUserId: req.user!.id,
+        authenticatedUserRole: req.user!.role
+      });
 
       return res.status(200).json({
         success: true,
@@ -31,7 +35,11 @@ export const userController = {
 
   async getUser(req: AuthenticatedRequest, res: Response) {
     try {
-      const user = await userService.getUserById(req.params.id as string);
+      const user = await userService.getUserById(
+        req.params.id as string,
+        req.user?.id,
+        req.user?.role
+      );
 
       if (!user) {
         return res.status(404).json({
@@ -131,7 +139,9 @@ export const userController = {
 
       const user = await userService.updateUser(
         id,
-        parsedData
+        parsedData,
+        req.user!.id,
+        req.user!.role
       );
 
       return res.status(200).json({
@@ -453,6 +463,29 @@ export const userController = {
       return res.status(500).json({
         success: false,
         message: 'Internal server error'
+      });
+    }
+  },
+
+  async deleteUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      const result = await userService.deleteUser(
+        req.params.id as string,
+        req.user!.id,
+        req.user!.role
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: result.type === 'soft' ? 'User deactivated and preserved (business history exists)' : 'User permanently deleted',
+        type: result.type
+      });
+    } catch (error: any) {
+      console.error('deleteUser error:', error);
+      const isClientError = error.message.includes('Cannot delete') || error.message.includes('Forbidden') || error.message.includes('not found');
+      return res.status(isClientError ? 400 : 500).json({
+        success: false,
+        message: error.message || 'Internal server error'
       });
     }
   }

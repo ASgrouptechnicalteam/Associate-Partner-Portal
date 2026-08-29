@@ -14,7 +14,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { id: reqUser.id },
-      select: { id: true, name: true, associateId: true, role: { select: { name: true } } }
+      select: { id: true, name: true, userIdentifier: true, role: { select: { name: true } } }
     });
 
     if (!user) {
@@ -25,29 +25,30 @@ export const getDashboardData = async (req: Request, res: Response) => {
 
     // 1. Team Count
     let teamCount = 0;
-    if (user.role.name === 'MD' || user.role.name === 'ASSOCIATE_MANAGER') {
+    if (user.role.name === 'MD' || user.role.name === 'CHANNEL_PARTNER_MANAGER') {
       const fullDownline = await TeamService.getFullDownline(user.id);
       teamCount = fullDownline.length;
     }
 
     // 2. Booking Count
     let bookingCount = 0;
-    if (user.role.name === 'MD' || user.role.name === 'ASSOCIATE_MANAGER') {
+    if (user.role.name === 'MD') {
       bookingCount = await prisma.booking.count();
     } else {
       const downline = await TeamService.getFullDownline(user.id);
       bookingCount = await prisma.booking.count({
-        where: { associateId: { in: [user.id, ...downline] } }
+        where: { userId: { in: [user.id, ...downline] } }
       });
     }
 
     // 2.5 Commission Count
     let commissionTotal = new Prisma.Decimal(0);
-    if (user.role.name === 'MD' || user.role.name === 'ASSOCIATE_MANAGER') {
+    if (user.role.name === 'MD') {
       const allTx = await prisma.commissionTransaction.findMany();
       allTx.forEach(t => commissionTotal = commissionTotal.add(t.amountCalculated));
     } else {
-      const myTx = await prisma.commissionTransaction.findMany({ where: { associateId: user.id }});
+      const downline = await TeamService.getFullDownline(user.id);
+      const myTx = await prisma.commissionTransaction.findMany({ where: { userId: { in: [user.id, ...downline] } }});
       myTx.forEach(t => commissionTotal = commissionTotal.add(t.amountCalculated));
     }
 
@@ -77,6 +78,22 @@ export const getDashboardData = async (req: Request, res: Response) => {
       }
     });
 
+    const hotProjectsRaw = await prisma.project.findMany({
+      where: { ...projectWhere, isHot: true },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        media: {
+          where: { status: 'ACTIVE', mediaType: 'GALLERY' },
+          take: 1,
+          orderBy: { displayOrder: 'asc' }
+        },
+        inventory: {
+          where: { status: 'AVAILABLE' }
+        }
+      }
+    });
+
     const mappedProjects = featuredProjects.map(p => ({
       id: p.id,
       name: p.name,
@@ -85,6 +102,8 @@ export const getDashboardData = async (req: Request, res: Response) => {
       projectType: p.projectType,
       status: p.status,
       verificationStatus: p.verificationStatus,
+      isHot: p.isHot,
+      isFeatured: p.isFeatured,
       availableUnits: p.inventory.length,
       image: p.media[0]?.url || null
     }));
@@ -128,8 +147,9 @@ export const getDashboardData = async (req: Request, res: Response) => {
       status: 'success',
       data: {
         user: {
+          id: user.id,
           name: user.name,
-          associateId: user.associateId,
+          userIdentifier: user.userIdentifier,
           role: user.role.name
         },
         statistics: {
@@ -139,6 +159,19 @@ export const getDashboardData = async (req: Request, res: Response) => {
           siteVisits: null // "Coming soon"
         },
         featuredProjects: mappedProjects,
+        hotProjects: hotProjectsRaw.map(p => ({
+          id: p.id,
+          name: p.name,
+          code: p.code,
+          location: p.location,
+          projectType: p.projectType,
+          status: p.status,
+          verificationStatus: p.verificationStatus,
+          isHot: p.isHot,
+          isFeatured: p.isFeatured,
+          availableUnits: p.inventory.length,
+          image: p.media[0]?.url || null
+        })),
         carouselItems: activeCarouselItems,
         popup: activePopup,
         activeOffers

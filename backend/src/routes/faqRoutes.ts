@@ -9,8 +9,8 @@ router.get('/', authenticate, getFaqs);
 router.get('/:id', authenticate, getFaqById);
 
 // CMS Endpoints
-router.post('/', authenticate, roleCheck(['MD', 'ASSOCIATE_MANAGER']), createFaq);
-router.patch('/:id', authenticate, roleCheck(['MD', 'ASSOCIATE_MANAGER']), updateFaq);
-router.delete('/:id', authenticate, roleCheck(['MD', 'ASSOCIATE_MANAGER']), deleteFaq);
+router.post('/', authenticate, roleCheck(['MD', 'CHANNEL_PARTNER_MANAGER']), createFaq);
+router.patch('/:id', authenticate, roleCheck(['MD', 'CHANNEL_PARTNER_MANAGER']), updateFaq);
+router.delete('/:id', authenticate, roleCheck(['MD', 'CHANNEL_PARTNER_MANAGER']), deleteFaq);
 
 export default router;

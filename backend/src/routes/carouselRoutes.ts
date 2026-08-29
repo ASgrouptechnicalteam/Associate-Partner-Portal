@@ -23,12 +23,12 @@ router.get('/:id', getCarouselById);
 
 // AM and MD routes
 // Reorder route MUST be before the dynamic /:id route
-router.patch('/reorder', requireRole('MD', 'ASSOCIATE_MANAGER'), reorderCarousels);
+router.patch('/reorder', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), reorderCarousels);
 
-router.post('/', requireRole('MD', 'ASSOCIATE_MANAGER'), createCarousel);
-router.post('/upload', requireRole('MD', 'ASSOCIATE_MANAGER'), upload.single('file'), uploadCarouselImage);
+router.post('/', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), createCarousel);
+router.post('/upload', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), upload.single('file'), uploadCarouselImage);
 
-router.patch('/:id', requireRole('MD', 'ASSOCIATE_MANAGER'), updateCarousel);
-router.delete('/:id', requireRole('MD', 'ASSOCIATE_MANAGER'), deleteCarousel);
+router.patch('/:id', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), updateCarousel);
+router.delete('/:id', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), deleteCarousel);
 
 export default router;

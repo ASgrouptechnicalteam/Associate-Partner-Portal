@@ -9,7 +9,8 @@ const createSiteVisitSchema = z.object({
   customerEmail: z.string().email().optional().nullable(),
   visitDate: z.string().datetime(), // expects ISO string
   visitTime: z.string().min(1, 'Visit time is required'),
-  remarks: z.string().optional()
+  remarks: z.string().optional(),
+  isDemo: z.boolean().optional()
 });
 
 const updateStatusSchema = z.object({
@@ -41,6 +42,7 @@ export const getSiteVisits = async (req: Request, res: Response) => {
     const filters = {
       status: req.query.status ? String(req.query.status) : undefined,
       projectId: req.query.projectId ? String(req.query.projectId) : undefined,
+      isDemo: req.query.isDemo !== undefined ? req.query.isDemo === 'true' : undefined
     };
     const visits = await SiteVisitService.getSiteVisits(userId, role, filters);
     res.json({ success: true, data: visits });

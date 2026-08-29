@@ -17,12 +17,13 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Sonthillu Associate Partner Portal',
-        short_name: 'Sonthillu Partner',
-        description: 'Associate Partner Portal for Sonthillu Constructions',
+        name: 'Marketing & Sales Portal',
+        short_name: 'Marketing & Sales',
+        description: 'Marketing & Sales Portal for Sonthillu Constructions',
         theme_color: '#203B73',
         background_color: '#F4FAFC',
         display: 'standalone',
+        start_url: '/',
         icons: [
           {
             src: 'favicon.svg',

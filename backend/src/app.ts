@@ -11,9 +11,9 @@ import inventoryRoutes from './routes/inventoryRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import bookingRoutes from './routes/bookingRoutes';
 import commissionRoutes from './routes/commissionRoutes';
-import travelRoutes from './routes/travelRoutes';
 import authorizationRoutes from './routes/authorizationRoutes';
 import siteVisitRoutes from './routes/siteVisitRoutes';
+import demoBookingRoutes from './routes/demoBookingRoutes';
 import carouselRoutes from './routes/carouselRoutes';
 import popupRoutes from './routes/popupRoutes';
 import offerRoutes from './routes/offerRoutes';
@@ -22,7 +22,6 @@ import publicReviewRoutes from './routes/publicReviewRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import faqRoutes from './routes/faqRoutes';
 import tutorialRoutes from './routes/tutorialRoutes';
-import searchRoutes from './routes/searchRoutes';
 const app = express();
 
 // Security Headers
@@ -47,7 +46,7 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
-    message: 'Associate Partner Portal API is running'
+    message: 'Marketing & Sales Portal API is running'
   });
 });
 
@@ -60,9 +59,9 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 app.use('/api/v1/commissions', commissionRoutes);
-app.use('/api/v1/travel', travelRoutes);
 app.use('/api/v1/authorizations', authorizationRoutes);
 app.use('/api/v1/site-visits', siteVisitRoutes);
+app.use('/api/v1/demo-bookings', demoBookingRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/carousel', carouselRoutes);
 app.use('/api/v1/popups', popupRoutes);
@@ -72,7 +71,6 @@ app.use('/api/v1/public/reviews', publicReviewRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/faqs', faqRoutes);
 app.use('/api/v1/tutorials', tutorialRoutes);
-app.use('/api/search', searchRoutes);
 
 
 // Serve uploaded files (bill documents, project media)

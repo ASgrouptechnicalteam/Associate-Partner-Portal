@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { faqs } from './faqData';
 
 const prisma = new PrismaClient();
 
@@ -9,7 +10,7 @@ async function main() {
   // 1. Seed Roles
   const roles = [
     { name: 'MD', description: 'Managing Director' },
-    { name: 'ASSOCIATE_MANAGER', description: 'Associate Manager' },
+    { name: 'CHANNEL_PARTNER_MANAGER', description: 'Channel Partner Manager' },
     { name: 'ASSOCIATE', description: 'Associate Partner' },
   ];
 
@@ -60,19 +61,19 @@ async function main() {
     {
       email: 'md@sonthillu.com',
       name: 'Managing Director',
-      associateId: 'MD-001',
+      userIdentifier: 'RS-MD001',
       roleName: 'MD',
     },
     {
       email: 'am@sonthillu.com',
-      name: 'Associate Manager',
-      associateId: 'AM-001',
-      roleName: 'ASSOCIATE_MANAGER',
+      name: 'Channel Partner Manager',
+      userIdentifier: 'RS-CPM01',
+      roleName: 'CHANNEL_PARTNER_MANAGER',
     },
     {
       email: 'associate@sonthillu.com',
       name: 'Test Associate',
-      associateId: 'ASC-001',
+      userIdentifier: 'RS-ASC01',
       roleName: 'ASSOCIATE',
     },
   ];
@@ -87,13 +88,35 @@ async function main() {
       create: {
         email: userData.email,
         name: userData.name,
-        associateId: userData.associateId,
+        userIdentifier: userData.userIdentifier,
         passwordHash,
         roleId: role.id,
       },
     });
   }
   console.log('Users seeded.');
+
+  // 4. Seed FAQs
+  let faqCount = 0;
+  for (const faq of faqs) {
+    const existing = await prisma.faq.findFirst({
+      where: { category: faq.category, question: faq.question }
+    });
+    if (!existing) {
+      await prisma.faq.create({
+        data: {
+          category: faq.category,
+          question: faq.question,
+          answer: faq.answer,
+          roleVisibility: ["MD", "CHANNEL_PARTNER_MANAGER", "ASSOCIATE"],
+          isPublished: true,
+        }
+      });
+      faqCount++;
+    }
+  }
+  console.log(`Seeded ${faqCount} FAQs (skipped existing).`);
+
   console.log('Seed completed successfully.');
 }
 

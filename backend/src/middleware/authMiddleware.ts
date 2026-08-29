@@ -36,8 +36,8 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
       return res.status(403).json({ success: false, message: `Account is ${user.status}` });
     }
 
-    // Single-device policy for MD and ASSOCIATE_MANAGER
-    if (decoded.role === 'MD' || decoded.role === 'ASSOCIATE_MANAGER') {
+    // Single-device policy for MD and CHANNEL_PARTNER_MANAGER
+    if (decoded.role === 'MD' || decoded.role === 'CHANNEL_PARTNER_MANAGER') {
       if (user.activeSessionId && user.activeSessionId !== decoded.sessionId) {
         // Clear token so client knows they're fully logged out
         res.clearCookie('token', { path: '/' });

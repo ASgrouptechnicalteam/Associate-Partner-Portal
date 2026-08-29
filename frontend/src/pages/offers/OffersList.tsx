@@ -73,7 +73,7 @@ const OffersList: React.FC = () => {
           </h1>
           <p className="text-sm text-gray-500">View and track promotional offers</p>
         </div>
-        {(user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER') && (
+        {(user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER') && (
           <Button
             onClick={() => navigate('/offers/create')}
             leftIcon={<Plus className="w-4 h-4 mr-1" />}
@@ -105,7 +105,7 @@ const OffersList: React.FC = () => {
                     {item.status.toLowerCase()}
                   </Badge>
                 </div>
-                {(user?.role === 'MD' || user?.role === 'ASSOCIATE_MANAGER') && (
+                {(user?.role === 'MD' || user?.role === 'CHANNEL_PARTNER_MANAGER') && (
                   <div className="flex space-x-1">
                     <Button variant="ghost" className="p-2" onClick={() => navigate(`/offers/${item.id}/edit`)}>
                       <Edit2 className="w-4 h-4" />

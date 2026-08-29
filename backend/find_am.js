@@ -1,0 +1,1 @@
+﻿const fs = require('fs'); const backup = JSON.parse(fs.readFileSync('database_backup.json')); const am = backup.user.find(u => u.userIdentifier === 'AM-001'); console.log(JSON.stringify(am, null, 2));

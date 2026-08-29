@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { TeamService } from '../services/teamService';
 import { AuditService } from '../services/auditService';
 import { NotificationService } from '../services/notificationService';
+import { HierarchyService } from '../services/hierarchyService';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
@@ -11,14 +12,14 @@ const prisma = new PrismaClient();
 // Safe DTO mapper to exclude sensitive data
 const mapSafeUser = (user: any) => ({
   id: user.id,
-  associateId: user.associateId,
+  userIdentifier: user.userIdentifier,
   name: user.name,
   email: user.email,
   phone: user.phone,
   role: user.role,
   status: user.status,
   createdAt: user.createdAt,
-  upline: user.upline
+  parentId: user.parentId
 });
 
 export const getMyDownline = async (req: AuthenticatedRequest, res: Response) => {
@@ -28,7 +29,7 @@ export const getMyDownline = async (req: AuthenticatedRequest, res: Response) =>
     
     let whereClause: any = { status: 'ACTIVE', id: { not: userId } };
     
-    if (userRole !== 'MD' && userRole !== 'ASSOCIATE_MANAGER') {
+    if (userRole !== 'MD') {
       const downlineIds = await TeamService.getFullDownline(userId);
       whereClause.id = { in: downlineIds };
     }
@@ -37,14 +38,14 @@ export const getMyDownline = async (req: AuthenticatedRequest, res: Response) =>
       where: whereClause,
       select: {
         id: true,
-        associateId: true,
+        userIdentifier: true,
         name: true,
         email: true,
         phone: true,
         status: true,
         role: { select: { name: true } },
         createdAt: true,
-        upline: { select: { parentAssociateId: true } },
+        parentId: true,
         _count: {
           select: {
             bookings: true,
@@ -79,11 +80,14 @@ export const getMyDownline = async (req: AuthenticatedRequest, res: Response) =>
 
 export const getTeamHierarchy = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const relationships = await prisma.teamRelationship.findMany({
-      where: { status: 'ACTIVE' },
-      include: {
-        parent: { select: { id: true, associateId: true, name: true, role: { select: { name: true } } } },
-        child: { select: { id: true, associateId: true, name: true, role: { select: { name: true } } } }
+    const relationships = await prisma.user.findMany({
+      where: { parentId: { not: null } },
+      select: {
+        id: true,
+        userIdentifier: true,
+        name: true,
+        role: { select: { name: true } },
+        parent: { select: { id: true, userIdentifier: true, name: true, role: { select: { name: true } } } }
       }
     });
     return res.status(200).json({ success: true, data: relationships });
@@ -124,7 +128,7 @@ export const getTeamStatistics = async (req: AuthenticatedRequest, res: Response
 // --- TEAM REQUESTS WORKFLOW ---
 
 const createRequestSchema = z.object({
-  targetAssociateId: z.string().uuid(),
+  targetUserId: z.string().uuid(),
   proposedParentId: z.string().uuid().optional().nullable(),
   requestType: z.enum(['ADD', 'REMOVE']),
   reason: z.string().optional()
@@ -132,7 +136,7 @@ const createRequestSchema = z.object({
 
 export const createTeamRequest = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { targetAssociateId, proposedParentId, requestType, reason } = createRequestSchema.parse(req.body);
+    const { targetUserId, proposedParentId, requestType, reason } = createRequestSchema.parse(req.body);
     const requesterId = req.user!.id;
 
     // Additional validations
@@ -140,14 +144,14 @@ export const createTeamRequest = async (req: AuthenticatedRequest, res: Response
       return res.status(400).json({ success: false, message: 'proposedParentId is required for ADD request' });
     }
 
-    if (proposedParentId === targetAssociateId) {
+    if (proposedParentId === targetUserId) {
       return res.status(400).json({ success: false, message: 'Cannot assign user to themselves' });
     }
 
     const teamReq = await prisma.teamRequest.create({
       data: {
         requesterId,
-        targetAssociateId,
+        targetUserId,
         proposedParentId,
         requestType,
         reason,
@@ -172,7 +176,7 @@ export const getTeamRequests = async (req: AuthenticatedRequest, res: Response) 
     let whereClause: any = {};
     if (role === 'ASSOCIATE') {
       whereClause = { requesterId: userId };
-    } else if (role === 'ASSOCIATE_MANAGER') {
+    } else if (role === 'CHANNEL_PARTNER_MANAGER') {
       // AM might see all or just their own, let's let them see all for now to manage
       whereClause = {}; 
     }
@@ -180,9 +184,9 @@ export const getTeamRequests = async (req: AuthenticatedRequest, res: Response) 
     const requests = await prisma.teamRequest.findMany({
       where: whereClause,
       include: {
-        requester: { select: { id: true, name: true, associateId: true } },
-        targetAssociate: { select: { id: true, name: true, associateId: true } },
-        proposedParent: { select: { id: true, name: true, associateId: true } }
+        requester: { select: { id: true, name: true, userIdentifier: true } },
+        targetUser: { select: { id: true, name: true, userIdentifier: true } },
+        proposedParent: { select: { id: true, name: true, userIdentifier: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -205,9 +209,9 @@ export const approveTeamRequest = async (req: AuthenticatedRequest, res: Respons
       if (teamReq.status !== 'PENDING') throw new Error('Request is not PENDING');
 
       if (teamReq.requestType === 'ADD' && teamReq.proposedParentId) {
-        await TeamService.assignAssociateToParentTx(tx, teamReq.proposedParentId, teamReq.targetAssociateId);
+        await TeamService.assignAssociateToParentTx(tx, teamReq.proposedParentId, teamReq.targetUserId);
       } else if (teamReq.requestType === 'REMOVE') {
-        await TeamService.removeAssociateFromParentTx(tx, teamReq.targetAssociateId);
+        await TeamService.removeAssociateFromParentTx(tx, teamReq.targetUserId);
       }
 
       const updated = await tx.teamRequest.update({
@@ -274,5 +278,192 @@ export const rejectTeamRequest = async (req: AuthenticatedRequest, res: Response
   } catch (error: any) {
     console.error('Error rejecting team request:', error);
     return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const getTeams = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const where: any = {};
+    if (req.user!.role !== 'MD' && req.user!.role !== 'CHANNEL_PARTNER_MANAGER') {
+      const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
+      if (currentUser?.teamId) {
+        where.id = currentUser.teamId;
+      } else {
+        return res.json({ success: true, data: [] }); // User has no team
+      }
+    }
+
+    const teams = await prisma.team.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    // Fetch head users and stats
+    const teamsWithStats = await Promise.all(teams.map(async (team) => {
+      let headUser = null;
+      if (team.headUserId) {
+        headUser = await prisma.user.findUnique({
+          where: { id: team.headUserId },
+          select: { id: true, userIdentifier: true, name: true, email: true, designation: true, profileImageUrl: true }
+        });
+      }
+      
+      const totalMembers = await prisma.user.count({ where: { teamId: team.id } });
+      const activeMembers = await prisma.user.count({ where: { teamId: team.id, status: 'ACTIVE' } });
+      
+      let directMembers = 0;
+      if (headUser) {
+         directMembers = await prisma.user.count({ where: { teamId: team.id, parentId: headUser.id } });
+      }
+
+      return {
+        ...team,
+        headUser,
+        totalMembers,
+        activeMembers,
+        directMembers
+      };
+    }));
+
+    return res.json({ success: true, data: teamsWithStats });
+  } catch (error) {
+    console.error('Error fetching teams:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch teams' });
+  }
+};
+
+export const createTeam = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, headUserId, memberIds } = req.body;
+    if (!name) return res.status(400).json({ success: false, message: 'Team name is required' });
+
+    // Ensure uniqueness if needed
+    const existing = await prisma.team.findFirst({ where: { name } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Team name already exists' });
+    }
+
+    // Resolve headUserId
+    let actualHeadId = null;
+    if (headUserId) {
+      const headUser = await prisma.user.findFirst({ where: { OR: [{ id: headUserId }, { userIdentifier: headUserId }] } });
+      if (headUser) {
+        if (headUser.designation !== 'Marketing Director') {
+          return res.status(400).json({ success: false, message: 'Only users with designation Marketing Director can be assigned as Team Head.' });
+        }
+        actualHeadId = headUser.id;
+      }
+      else return res.status(400).json({ success: false, message: 'Invalid Team Head ID' });
+    }
+
+    // Resolve memberIds
+    let actualMemberIds: string[] = [];
+    if (memberIds && Array.isArray(memberIds) && memberIds.length > 0) {
+      const users = await prisma.user.findMany({ where: { OR: [{ id: { in: memberIds } }, { userIdentifier: { in: memberIds } }] } });
+      actualMemberIds = users.map(u => u.id);
+    }
+
+    const team = await prisma.$transaction(async (tx) => {
+      const newTeam = await tx.team.create({
+        data: {
+          name,
+          headUserId: actualHeadId
+        }
+      });
+
+      if (actualHeadId) {
+        await tx.user.update({
+          where: { id: actualHeadId },
+          data: { teamId: newTeam.id }
+        });
+      }
+
+      if (actualMemberIds.length > 0) {
+        await tx.user.updateMany({
+          where: { id: { in: actualMemberIds } },
+          data: { teamId: newTeam.id }
+        });
+      }
+
+      return newTeam;
+    });
+
+    return res.status(201).json({ success: true, data: team });
+  } catch (error) {
+    console.error('Error creating team:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create team' });
+  }
+};
+
+export const updateTeamHead = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { headUserId } = req.body;
+
+    if (headUserId) {
+      const headUser = await prisma.user.findUnique({ where: { id: headUserId } });
+      if (!headUser) return res.status(404).json({ success: false, message: 'User not found' });
+      if (headUser.designation !== 'Marketing Director') {
+        return res.status(400).json({ success: false, message: 'Only users with designation Marketing Director can be assigned as Team Head.' });
+      }
+    }
+
+    const team = await prisma.team.update({
+      where: { id },
+      data: { headUserId }
+    });
+
+    if (headUserId) {
+      await prisma.user.update({
+        where: { id: headUserId },
+        data: { teamId: team.id }
+      });
+    }
+
+    return res.json({ success: true, data: team });
+  } catch (error) {
+    console.error('Error updating team head:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update team head' });
+  }
+};
+
+export const getTeamHierarchyData = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    
+    if (req.user!.role !== 'MD') {
+      const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
+      if (currentUser?.teamId !== id) {
+        return res.status(403).json({ success: false, message: 'Forbidden: Outside permitted hierarchy' });
+      }
+    }
+
+    const tree = await HierarchyService.buildTree(null, id);
+    return res.json({ success: true, data: tree });
+  } catch (error) {
+    console.error('Error fetching team hierarchy data:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch team hierarchy' });
+  }
+};
+
+export const deleteTeam = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    
+    // Check if users belong to this team
+    const activeMembers = await prisma.user.count({ where: { teamId: id } });
+    if (activeMembers > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot delete this team while members are assigned. Reassign the members first.' 
+      });
+    }
+
+    await prisma.team.delete({ where: { id } });
+    
+    return res.json({ success: true, message: 'Team deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting team:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete team' });
   }
 };

@@ -12,7 +12,7 @@ router.post('/requests', requireRole('ASSOCIATE'), ReviewController.createReques
 router.get('/requests', ReviewController.getRequests);
 
 // Analytics
-router.get('/analytics', requireRole('MD', 'ASSOCIATE_MANAGER'), ReviewController.getAnalytics);
+router.get('/analytics', requireRole('MD', 'CHANNEL_PARTNER_MANAGER'), ReviewController.getAnalytics);
 
 // Block mutations explicitly on authenticated side
 router.put('/:id', ReviewController.blockMutation);

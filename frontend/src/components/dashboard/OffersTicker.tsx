@@ -120,4 +120,4 @@ export const OffersTicker: React.FC<OffersTickerProps> = ({ offers }) => {
   );
 };
 
-export default OffersTicker;
+export default React.memo(OffersTicker);
