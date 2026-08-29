@@ -1,14 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Eye, Edit, ShieldAlert, User as UserIcon } from 'lucide-react';
+import { Plus, Search, Eye, Edit, ShieldAlert, Ban } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { Avatar } from '../../components/ui/Avatar';
 import api from '../../services/api';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import DeactivateUserModal from './components/DeactivateUserModal';
+import DeleteUserModal from './components/DeleteUserModal';
 
 interface User {
   id: string;
-  associateId: string;
+  userIdentifier: string;
   name: string;
   email: string;
   phone: string | null;
@@ -16,9 +20,15 @@ interface User {
   status: string;
   lastLoginAt: string | null;
   dateOfJoining: string | null;
+  designation?: string;
+  team?: { name: string };
+  directMembersCount?: number;
+  totalDescendantsCount?: number;
+  profileImageUrl?: string | null;
 }
 
 const Users: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +40,20 @@ const Users: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Modal states
+  const [selectedUserForDeactivate, setSelectedUserForDeactivate] = useState<any | null>(null);
+  const [selectedUserForDelete, setSelectedUserForDelete] = useState<any | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
+
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -39,7 +63,7 @@ const Users: React.FC = () => {
         page: page.toString(),
         limit: '10',
       });
-      if (search) params.append('search', search);
+      if (debouncedSearch) params.append('search', debouncedSearch);
       if (roleFilter) params.append('role', roleFilter);
       if (statusFilter) params.append('status', statusFilter);
 
@@ -57,11 +81,45 @@ const Users: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, search, roleFilter, statusFilter]);
+  }, [page, debouncedSearch, roleFilter, statusFilter]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  const handleDelete = async () => {
+    if (!selectedUserForDelete) return;
+    try {
+      setModalLoading(true);
+      const res = await api.delete(`/users/${selectedUserForDelete.id}`);
+      if (res.data.success) {
+        alert(res.data.message);
+        setSelectedUserForDelete(null);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete user');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!selectedUserForDeactivate) return;
+    try {
+      setModalLoading(true);
+      const newStatus = selectedUserForDeactivate.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
+      const res = await api.patch(`/users/${selectedUserForDeactivate.id}/status`, { status: newStatus });
+      if (res.data.success) {
+        setSelectedUserForDeactivate(null);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update user status');
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string): any => {
     switch (status) {
@@ -123,7 +181,7 @@ const Users: React.FC = () => {
             >
               <option value="">All Roles</option>
               <option value="MD">MD</option>
-              <option value="ASSOCIATE_MANAGER">Associate Manager</option>
+              <option value="CHANNEL_PARTNER_MANAGER">Channel Partner Manager</option>
               <option value="ASSOCIATE">Associate</option>
             </select>
           </div>
@@ -161,47 +219,82 @@ const Users: React.FC = () => {
       ) : (
         <>
           {/* Desktop Table View */}
-          <Card padding="none" className="hidden overflow-hidden md:block">
-            <table className="min-w-full divide-y divide-border-subtle">
+          <Card padding="none" className="hidden md:block overflow-hidden">
+            <table className="w-full table-fixed divide-y divide-border-subtle">
               <thead className="bg-gray-50/80">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Associate</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Date of Joining</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-muted-text uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-muted-text uppercase tracking-wider">Actions</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-bold text-muted-text uppercase tracking-wider w-[25%]">Associate</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-bold text-muted-text uppercase tracking-wider w-[18%]">Designation</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-bold text-muted-text uppercase tracking-wider w-[12%]">Hierarchy</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-bold text-muted-text uppercase tracking-wider w-[20%]">Team & Superior</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-bold text-muted-text uppercase tracking-wider w-[12%]">Status & Joined</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-bold text-muted-text uppercase tracking-wider w-[130px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {users.map((user) => (
+                {users.map((user: any) => (
                   <tr key={user.id} className="transition-colors hover:bg-gray-50">
-                    <td className="whitespace-nowrap px-6 py-4">
+                    <td className="px-3 py-3 overflow-hidden">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary-navy/10 flex items-center justify-center text-primary-navy shrink-0">
-                          <UserIcon size={18} />
-                        </div>
-                        <div>
-                          <div className="text-sm font-bold text-primary-navy">{user.name}</div>
-                          <div className="text-xs text-muted-text mt-0.5">{user.associateId || '-'}</div>
-                          <div className="text-xs text-muted-text">{user.email}</div>
+                        <Avatar name={user.name} imageUrl={user.profileImageUrl} size="md" className="hidden lg:flex" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13px] font-bold text-primary-navy truncate" title={user.name}>{user.name}</div>
+                          <div className="text-[11px] text-muted-text mt-0.5">{user.userIdentifier || '-'}</div>
+                          <div className="text-[11px] text-muted-text truncate" title={user.email}>{user.email}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <Badge variant="neutral">{user.role.replace('_', ' ')}</Badge>
+                    <td className="px-3 py-3 overflow-hidden">
+                      <div className="text-[13px] font-medium text-gray-900 truncate" title={user.designation || ''}>{user.designation || '-'}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{user.commissionPercentage || 0}% Comm.</div>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 font-medium">
-                      {user.dateOfJoining ? new Date(user.dateOfJoining).toLocaleDateString() : '-'}
+                    <td className="px-3 py-3 overflow-hidden">
+                      <div className="text-[13px] text-gray-900"><span className="font-semibold">{user.directMembersCount || 0}</span> Direct</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5"><span className="font-semibold">{user.totalDescendantsCount || 0}</span> Total</div>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4">
+                    <td className="px-3 py-3 overflow-hidden">
+                      <div className="text-[13px] text-gray-900 truncate" title={user.team?.name || ''}>Team: <span className="font-semibold">{user.team?.name || '-'}</span></div>
+                      <div className="text-[11px] text-gray-500 mt-0.5 truncate" title={user.parent?.name ? `${user.parent.name} (${user.parent.userIdentifier})` : (user.parent?.userIdentifier || 'None')}>Reports To: {user.parent?.name ? user.parent.name : (user.parent?.userIdentifier || 'None')}</div>
+                    </td>
+                    <td className="px-3 py-3 overflow-hidden">
                       <Badge variant={getStatusColor(user.status)}>
                         {user.status.replace('_', ' ')}
                       </Badge>
+                      <div className="text-[11px] text-gray-500 mt-1">
+                        {user.dateOfJoining ? new Date(user.dateOfJoining).toLocaleDateString() : '-'}
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-3">
-                        <Link to={`/users/${user.id}`} className="text-action-blue hover:text-blue-900 bg-action-blue/10 p-2 rounded-lg" title="View Profile"><Eye size={18} /></Link>
-                        <Link to={`/users/${user.id}/edit`} className="text-brand-gold hover:text-yellow-700 bg-brand-gold/10 p-2 rounded-lg" title="Edit Profile"><Edit size={18} /></Link>
+                    <td className="px-3 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link to={`/users/${user.id}`} className="text-action-blue hover:text-blue-900 bg-action-blue/10 p-1.5 rounded-lg shrink-0" title="View Profile"><Eye size={16} /></Link>
+                        <Link to={`/users/${user.id}/edit`} className="text-brand-gold hover:text-yellow-700 bg-brand-gold/10 p-1.5 rounded-lg shrink-0" title="Edit Profile"><Edit size={16} /></Link>
+                        {/* Only MD and CPM can initiate delete/deactivate, and only on non-MD/CPM targets */}
+                        {(currentUser?.role === 'MD' || currentUser?.role === 'CHANNEL_PARTNER_MANAGER') && 
+                         user.role !== 'MD' && user.role !== 'CHANNEL_PARTNER_MANAGER' && (
+                          <>
+                            <button onClick={() => setSelectedUserForDeactivate({
+                              id: user.id,
+                              name: user.name,
+                              userIdentifier: user.userIdentifier,
+                              designation: user.designation,
+                              teamName: user.team?.name,
+                              status: user.status
+                            })} className={`${user.status === 'ACTIVE' ? 'text-orange-500 hover:text-orange-700 bg-orange-100' : 'text-green-500 hover:text-green-700 bg-green-100'} p-1.5 rounded-lg shrink-0`} title={user.status === 'ACTIVE' ? "Deactivate User" : "Activate User"}>
+                              <Ban size={16} />
+                            </button>
+                            <button onClick={() => setSelectedUserForDelete({
+                              id: user.id,
+                              name: user.name,
+                              userIdentifier: user.userIdentifier,
+                              designation: user.designation,
+                              teamName: user.team?.name,
+                              directMembersCount: user.directMembersCount,
+                              totalDescendantsCount: user.totalDescendantsCount
+                            })} className="text-red-500 hover:text-red-700 bg-red-100 p-1.5 rounded-lg shrink-0" title="Delete User">
+                              <ShieldAlert size={16} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -215,9 +308,12 @@ const Users: React.FC = () => {
             {users.map((user) => (
               <div key={user.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="mb-2 flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-primary-navy">{user.name}</h3>
-                    <p className="text-sm text-gray-500">{user.associateId || 'No ID'}</p>
+                  <div className="flex items-center gap-3">
+                    <Avatar name={user.name} imageUrl={user.profileImageUrl} size="md" />
+                    <div>
+                      <h3 className="font-semibold text-primary-navy">{user.name}</h3>
+                      <p className="text-sm text-gray-500">{user.userIdentifier || 'No ID'}</p>
+                    </div>
                   </div>
                   <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(user.status)}`}>
                     {user.status.replace('_', ' ')}
@@ -231,6 +327,32 @@ const Users: React.FC = () => {
                   <div className="flex gap-4">
                     <Link to={`/users/${user.id}`} className="p-1 text-blue-600"><Eye size={20} /></Link>
                     <Link to={`/users/${user.id}/edit`} className="p-1 text-yellow-600"><Edit size={20} /></Link>
+                    {(currentUser?.role === 'MD' || currentUser?.role === 'CHANNEL_PARTNER_MANAGER') && 
+                     user.role !== 'MD' && user.role !== 'CHANNEL_PARTNER_MANAGER' && (
+                      <>
+                        <button onClick={() => setSelectedUserForDeactivate({
+                          id: user.id,
+                          name: user.name,
+                          userIdentifier: user.userIdentifier,
+                          designation: user.designation,
+                          teamName: user.team?.name,
+                          status: user.status
+                        })} className={`p-1 ${user.status === 'ACTIVE' ? 'text-orange-600' : 'text-green-600'}`}>
+                          <Ban size={20} />
+                        </button>
+                        <button onClick={() => setSelectedUserForDelete({
+                          id: user.id,
+                          name: user.name,
+                          userIdentifier: user.userIdentifier,
+                          designation: user.designation,
+                          teamName: user.team?.name,
+                          directMembersCount: user.directMembersCount,
+                          totalDescendantsCount: user.totalDescendantsCount
+                        })} className="p-1 text-red-600">
+                          <ShieldAlert size={20} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -259,6 +381,22 @@ const Users: React.FC = () => {
           )}
         </>
       )}
+      {/* Modals */}
+      <DeactivateUserModal
+        isOpen={!!selectedUserForDeactivate}
+        onClose={() => setSelectedUserForDeactivate(null)}
+        onConfirm={handleDeactivate}
+        user={selectedUserForDeactivate}
+        loading={modalLoading}
+      />
+
+      <DeleteUserModal
+        isOpen={!!selectedUserForDelete}
+        onClose={() => setSelectedUserForDelete(null)}
+        onConfirm={handleDelete}
+        user={selectedUserForDelete}
+        loading={modalLoading}
+      />
     </div>
   );
 };
